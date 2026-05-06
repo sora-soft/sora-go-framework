@@ -59,7 +59,6 @@ func main() {
 
 	nodeRunner := nodePkg.NewNodeRunner(nodePkg.NodeOptions{Version: "1.0.0"}, nil)
 	nodeSvc := runner.NewService("node", nodeRunner, types.ServiceOptions{})
-	nodeRunner.SetService(nodeSvc)
 
 	if err := rt.Startup(ctx, nodeSvc, backend); err != nil {
 		log.Error("main", err, map[string]any{"event": "startup_failed"})

@@ -26,10 +26,10 @@ func NewService(name string, runner types.Runner, opts types.ServiceOptions) typ
 		labels:     opts.Labels,
 	}
 
-	if aware, ok := runner.(types.ServiceRefAware); ok {
-		aware.SetServiceRef(s)
-	} else if aware, ok := runner.(types.WorkerRefAware); ok {
-		aware.SetWorkerRef(s)
+	if aware, ok := runner.(types.ServiceAware); ok {
+		aware.SetService(s)
+	} else if aware, ok := runner.(types.WorkerAware); ok {
+		aware.SetWorker(s)
 	}
 
 	return s

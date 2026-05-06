@@ -49,8 +49,8 @@ func (s ListenerState) String() string {
 }
 
 type ListenerCallbacks struct {
-	OnRequest      func(conn *Connection, req *packet.ReqPacketData)
-	OnNotify       func(conn *Connection, notify *packet.NotifyPacketData)
+	OnRequest      func(conn *Connection, pkt packet.Packet)
+	OnNotify       func(conn *Connection, pkt packet.Packet)
 	OnSessionOpen  func(conn *Connection, sessionId string)
 	OnSessionClose func(conn *Connection, sessionId string)
 }

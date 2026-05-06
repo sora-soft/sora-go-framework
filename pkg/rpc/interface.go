@@ -6,6 +6,8 @@ import (
 
 type Codec interface {
 	GetCode() string
-	Encode(pkt packet.Packet) ([]byte, error)
-	Decode(data []byte) (packet.Packet, error)
+	Marshal(v any) ([]byte, error)
+	Unmarshal(data []byte, v any) error
+	EncodePacket(pkt packet.Packet) ([]byte, error)
+	DecodePacket(data []byte) (packet.Packet, error)
 }

@@ -41,7 +41,6 @@ type NodeOptions struct {
 type NodeRunner struct {
 	options   NodeOptions
 	listeners []*rpc.Listener
-	svcRef    types.ServiceRef
 	svc       types.Service
 	host      string
 	pid       int
@@ -66,7 +65,7 @@ func mustHostname() string {
 
 func (n *NodeRunner) Startup(ctx context.Context) error {
 	for _, l := range n.listeners {
-		if err := n.svcRef.InstallListener(ctx, l); err != nil {
+		if err := n.svc.InstallListener(ctx, l); err != nil {
 			return err
 		}
 	}
@@ -76,10 +75,6 @@ func (n *NodeRunner) Startup(ctx context.Context) error {
 
 func (n *NodeRunner) Shutdown() error {
 	return nil
-}
-
-func (n *NodeRunner) SetServiceRef(svcRef types.ServiceRef) {
-	n.svcRef = svcRef
 }
 
 func (n *NodeRunner) SetService(svc types.Service) {

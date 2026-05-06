@@ -217,3 +217,15 @@ func zlibDecompress(data []byte) ([]byte, error) {
 }
 
 var _ rpc.Transport = (*TCPTransport)(nil)
+
+func init() {
+	rpc.RegisterTransport("tcp", func() rpc.Transport {
+		return NewTCPTransport()
+	}, rpc.ConnectorOptions{
+		Ping: rpc.ConnectorPingOptions{
+			Enabled:  true,
+			Timeout:  5 * time.Second,
+			Interval: 10 * time.Second,
+		},
+	})
+}

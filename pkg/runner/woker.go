@@ -55,8 +55,8 @@ func NewWorker(name string, runner types.Runner, options types.WorkerOptions) ty
 		options:   options,
 	}
 
-	if aware, ok := runner.(types.WorkerRefAware); ok {
-		aware.SetWorkerRef(w)
+	if aware, ok := runner.(types.WorkerAware); ok {
+		aware.SetWorker(w)
 	}
 
 	return w

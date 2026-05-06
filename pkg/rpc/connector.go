@@ -52,8 +52,9 @@ type Connection struct {
 	pinger *Pinger
 	target ListenerInfo
 
-	OnRequest func(conn *Connection, req *packet.ReqPacketData)
-	OnNotify  func(conn *Connection, notify *packet.NotifyPacketData)
+	OnRequest  func(conn *Connection, pkt packet.Packet)
+	OnNotify   func(conn *Connection, pkt packet.Packet)
+	OnResponse func(conn *Connection, pkt packet.Packet)
 
 	mu sync.Mutex
 
@@ -183,7 +184,7 @@ func (c *Connection) readLoop() {
 			return
 		}
 
-		pkt, err := c.codec.Decode(data)
+		pkt, err := c.codec.DecodePacket(data)
 		if err != nil {
 			c.LifeCycle.SetStateWithError(ConnectorStateError, err)
 			return
@@ -199,35 +200,31 @@ func (c *Connection) readLoop() {
 func (c *Connection) handlePacket(pkt packet.Packet) error {
 	switch pkt.Opcode {
 	case packet.PacketOpcodeCommand:
-		if pkt.Cmd == nil {
-			return errorx.New("ERR_CONNECTION_INVALID_PACKET", errorx.LevelUnexpected, "RpcError", "command packet has nil Cmd field", nil)
-		}
-		return c.handleCommand(pkt.Cmd)
+		return c.handleCommand(pkt)
 	case packet.PacketOpcodeRequest:
-		if pkt.Req == nil {
-			return errorx.New("ERR_CONNECTION_INVALID_PACKET", errorx.LevelUnexpected, "RpcError", "request packet has nil Req field", nil)
-		}
 		if c.OnRequest != nil {
-			c.OnRequest(c, pkt.Req)
+			go c.OnRequest(c, pkt)
 		}
 	case packet.PacketOpcodeNotify:
-		if pkt.Notify == nil {
-			return errorx.New("ERR_CONNECTION_INVALID_PACKET", errorx.LevelUnexpected, "RpcError", "notify packet has nil Notify field", nil)
-		}
 		if c.OnNotify != nil {
-			c.OnNotify(c, pkt.Notify)
+			go c.OnNotify(c, pkt)
+		}
+	case packet.PacketOpcodeResponse:
+		if c.OnResponse != nil {
+			go c.OnResponse(c, pkt)
 		}
 	}
 	return nil
 }
 
-func (c *Connection) handleCommand(cmd *packet.CommandPacketData) error {
-	switch cmd.Command {
+func (c *Connection) handleCommand(pkt packet.Packet) error {
+	cmd := packet.ConnectorCommand(pkt.Method)
+	switch cmd {
 	case packet.ConnectorCommandPing:
 		var args struct {
 			Id int `json:"id"`
 		}
-		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+		if err := json.Unmarshal(pkt.Payload(), &args); err != nil {
 			return err
 		}
 		return c.sendPong(args.Id)
@@ -235,7 +232,7 @@ func (c *Connection) handleCommand(cmd *packet.CommandPacketData) error {
 		var args struct {
 			Id int `json:"id"`
 		}
-		if err := json.Unmarshal(cmd.Args, &args); err != nil {
+		if err := json.Unmarshal(pkt.Payload(), &args); err != nil {
 			return err
 		}
 		c.mu.Lock()
@@ -248,32 +245,27 @@ func (c *Connection) handleCommand(cmd *packet.CommandPacketData) error {
 }
 
 func (c *Connection) SendRaw(ctx context.Context, pkt packet.Packet) error {
-	data, err := c.codec.Encode(pkt)
+	data, err := c.codec.EncodePacket(pkt)
 	if err != nil {
 		return err
 	}
 	return c.transport.Send(ctx, data)
 }
 
-func (c *Connection) SendRequest(ctx context.Context, req *packet.ReqPacketData) error {
-	return c.SendRaw(ctx, packet.Packet{
-		Opcode: packet.PacketOpcodeRequest,
-		Req:    req,
-	})
+func (c *Connection) SendRequest(ctx context.Context, pkt packet.Packet) error {
+	return c.SendRaw(ctx, pkt)
 }
 
-func (c *Connection) SendCommand(ctx context.Context, cmd *packet.CommandPacketData) error {
-	return c.SendRaw(ctx, packet.Packet{
-		Opcode: packet.PacketOpcodeCommand,
-		Cmd:    cmd,
-	})
+func (c *Connection) SendResponse(ctx context.Context, pkt packet.Packet) error {
+	return c.SendRaw(ctx, pkt)
 }
 
-func (c *Connection) SendResponse(ctx context.Context, res *packet.ResPacketData) error {
-	return c.SendRaw(ctx, packet.Packet{
-		Opcode: packet.PacketOpcodeResponse,
-		Res:    res,
-	})
+func (c *Connection) SendCommand(ctx context.Context, pkt packet.Packet) error {
+	return c.SendRaw(ctx, pkt)
+}
+
+func (c *Connection) SendNotify(ctx context.Context, pkt packet.Packet) error {
+	return c.SendRaw(ctx, pkt)
 }
 
 func (c *Connection) Disconnect() error {

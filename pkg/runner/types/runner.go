@@ -18,27 +18,20 @@ type Worker interface {
 	Stop() error
 	Go(fn func(ctx context.Context))
 	GetMetadata() WorkerMetaData
+	ConnectComponent(ctx context.Context, c component.Component) error
 }
 
 type Service interface {
 	Worker
-}
-
-type WorkerRef interface {
-	ConnectComponent(ctx context.Context, c component.Component) error
-}
-
-type ServiceRef interface {
-	WorkerRef
 	InstallListener(ctx context.Context, l *rpc.Listener) error
 }
 
-type WorkerRefAware interface {
-	SetWorkerRef(WorkerRef)
+type WorkerAware interface {
+	SetWorker(Worker)
 }
 
-type ServiceRefAware interface {
-	SetServiceRef(ServiceRef)
+type ServiceAware interface {
+	SetService(Service)
 }
 
 type LifeCycleListener interface {
