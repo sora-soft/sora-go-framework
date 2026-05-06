@@ -1,0 +1,33 @@
+version: '3'
+
+vars:
+  APP_NAME: myframework
+  MAIN_FILE: cmd/sora-cli/main.go
+  TEST_FILE: cmd/sora-test/main.go
+
+tasks:
+  # 默认任务：直接输入 task 就会执行这个
+  default:
+    cmds:
+      - task: run
+
+  build:
+    desc: "编译当前平台的二进制文件"
+    cmds:
+      - go build -o bin/{{.APP_NAME}} {{.MAIN_FILE}}
+
+  run:
+    desc: "直接运行项目"
+    cmds:
+      - go run {{.MAIN_FILE}}
+
+  test:
+    desc: "运行临时测试"
+    cmds:
+      - go run {{.TEST_FILE}}
+
+  clean:
+    desc: "清理编译生成的 bin 目录"
+    cmds:
+      # 在 Windows 上也能正常运行，Task 会自动将其转换
+      - rm -rf bin/
