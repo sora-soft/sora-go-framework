@@ -14,6 +14,19 @@ const (
 	PacketOpcodeCommand  PacketOpcode = 4
 )
 
+type PayloadError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Level   int    `json:"level"`
+	Name    string `json:"name"`
+	Args    any    `json:"args"`
+}
+
+type Response[T any] struct {
+	Error  *PayloadError `json:"error"`
+	Result T             `json:"result"`
+}
+
 type ConnectorCommand string
 
 const (
@@ -47,6 +60,10 @@ func Decode[T any](p Packet) (T, error) {
 
 func (p Packet) Payload() []byte {
 	return p.payload
+}
+
+func (p Packet) Codec() PayloadCodec {
+	return p.codec
 }
 
 func NewDecodedPacket(opcode PacketOpcode, method string, service string, headers map[string]string, payload []byte, codec PayloadCodec) Packet {

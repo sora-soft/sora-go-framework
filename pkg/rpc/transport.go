@@ -46,6 +46,7 @@ func GetTransportConfig(protocol string) (TransportConfig, bool) {
 const HeaderRpcId = "x-sora-rpc-id"
 
 type TransportListener interface {
+	StartListen(ctx context.Context) error
 	Accept(ctx context.Context) (*Connection, error)
 	Close() error
 	GetMetaInfo() TransportMetaInfo

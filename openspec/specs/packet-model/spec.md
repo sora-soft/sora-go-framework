@@ -52,3 +52,21 @@
 #### Scenario: Command packet 结构
 - **WHEN** 创建 CommandPacketData
 - **THEN** 包含 Opcode(=4)、Command(string)、Args(json.RawMessage) 三个导出字段
+
+### Requirement: Response[T] 类型
+系统必须在 `pkg/rpc/packet` 包中定义 `Response[T any]` struct，包含 `Error *PayloadError` 和 `Result T` 两个导出字段。该类型描述 RPC 响应的线路格式 `{error, result}`。
+
+#### Scenario: 反序列化成功响应
+- **WHEN** 从 Packet 解码 `Response[EchoResp]`，payload 为 `{"error": null, "result": {"message": "hi"}}`
+- **THEN** `resp.Error` 为 nil，`resp.Result.Message` 为 `"hi"`
+
+#### Scenario: 反序列化错误响应
+- **WHEN** 从 Packet 解码 `Response[any]`，payload 为 `{"error": {"code": "ERR_METHOD_NOT_FOUND", ...}, "result": null}`
+- **THEN** `resp.Error.Code` 为 `"ERR_METHOD_NOT_FOUND"`，`resp.Result` 为零值
+
+### Requirement: PayloadError 类型
+系统必须在 `pkg/rpc/packet` 包中定义 `PayloadError` struct，包含 `Code string`、`Message string`、`Level int`、`Name string`、`Args any` 五个导出字段（含 `json` 标签）。
+
+#### Scenario: PayloadError 序列化
+- **WHEN** 序列化 `PayloadError{Code: "ERR_INTERNAL", Message: "fail", Level: 1, Name: "InternalError"}`
+- **THEN** JSON 输出包含 `"code": "ERR_INTERNAL"`、`"message": "fail"`、`"level": 1`、`"name": "InternalError"`

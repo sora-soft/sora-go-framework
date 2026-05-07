@@ -45,16 +45,19 @@ All operations on both registries SHALL be protected by `sync.RWMutex`.
 - **WHEN** goroutine A calls `InstallService` and goroutine B calls `UninstallService` simultaneously
 - **THEN** both operations SHALL complete without data race
 
-### Requirement: Runtime SHALL provide Startup placeholder
-Runtime SHALL provide `Startup(ctx context.Context) error` that returns nil. Implementation is reserved for future use.
+### Requirement: Runtime SHALL provide Startup with node and backend
+Runtime SHALL provide `Startup(ctx context.Context, node *NodeRunner, backend discovery.Backend) error` that connects the backend and stores references. This replaces the previous no-op `Startup() error`.
 
-#### Scenario: Startup returns nil
-- **WHEN** `rt.Startup(ctx)` is called
-- **THEN** it SHALL return nil
+#### Scenario: Startup connects backend and stores references
+- **WHEN** `rt.Startup(ctx, nodeRunner, backend)` is called
+- **THEN** `backend.Connect(ctx)` SHALL be called
+- **AND** references SHALL be stored and accessible via GetNode/GetBackend/GetDiscovery
 
-### Requirement: Runtime SHALL provide Shutdown placeholder
-Runtime SHALL provide `Shutdown() error` that returns nil. Implementation is reserved for future use.
+### Requirement: Runtime SHALL provide Shutdown with graceful teardown
+Runtime SHALL provide `Shutdown() error` that concurrently stops all Services and Workers (excluding the node service), then stops the node, then disconnects the backend. This replaces the previous no-op `Shutdown() error`.
 
-#### Scenario: Shutdown returns nil
-- **WHEN** `rt.Shutdown()` is called
-- **THEN** it SHALL return nil
+#### Scenario: Shutdown performs full graceful teardown
+- **WHEN** `rt.Shutdown()` is called after Startup
+- **THEN** all Services and Workers SHALL be stopped concurrently
+- **AND** the node SHALL be stopped after all others complete
+- **AND** backend.Disconnect() SHALL be called last

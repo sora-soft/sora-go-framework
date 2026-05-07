@@ -14,7 +14,7 @@ type ProviderOptions struct {
 	LabelFilter *LabelFilter
 }
 
-type Provider struct {
+type rpcProvider struct {
 	serviceName  string
 	disco        discovery.Discovery
 	labelFilter  *LabelFilter
@@ -23,10 +23,11 @@ type Provider struct {
 	mu           sync.RWMutex
 	ctx          context.Context
 	cancel       context.CancelFunc
+	refCount     int
 }
 
-func NewProvider(serviceName string, disco discovery.Discovery, opts ProviderOptions) *Provider {
-	return &Provider{
+func NewProvider(serviceName string, disco discovery.Discovery, opts ProviderOptions) Provider {
+	return &rpcProvider{
 		serviceName:  serviceName,
 		disco:        disco,
 		labelFilter:  opts.LabelFilter,
@@ -35,12 +36,22 @@ func NewProvider(serviceName string, disco discovery.Discovery, opts ProviderOpt
 	}
 }
 
-func (p *Provider) Start(ctx context.Context) {
+func (p *rpcProvider) Start(ctx context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.refCount > 0 {
+		p.refCount++
+		return nil
+	}
+
 	p.ctx, p.cancel = context.WithCancel(ctx)
 	go p.watchLoop()
+	p.refCount = 1
+	return nil
 }
 
-func (p *Provider) watchLoop() {
+func (p *rpcProvider) watchLoop() {
 	endpointCh := p.disco.WatchEndpoints(p.ctx)
 	for snapshot := range endpointCh {
 		filtered := make([]discovery.EndpointMeta, 0, len(snapshot))
@@ -76,7 +87,7 @@ func (p *Provider) watchLoop() {
 	}
 }
 
-func (p *Provider) addSenderLocked(ctx context.Context, endpoint discovery.EndpointMeta) {
+func (p *rpcProvider) addSenderLocked(ctx context.Context, endpoint discovery.EndpointMeta) {
 	var codec rpc.Codec
 	for _, code := range endpoint.Codecs {
 		c, ok := rpc.GetCodec(code)
@@ -94,14 +105,14 @@ func (p *Provider) addSenderLocked(ctx context.Context, endpoint discovery.Endpo
 		return
 	}
 
-	sender := NewRpcSender(endpoint, p, codec, conf)
+	sender := NewRpcSender(endpoint, codec, conf)
 	sender.Start(ctx)
 
 	p.senders[endpoint.ID] = sender
 	p.sendersBySvc[endpoint.TargetID] = append(p.sendersBySvc[endpoint.TargetID], sender)
 }
 
-func (p *Provider) removeSenderLocked(endpointId string) {
+func (p *rpcProvider) removeSenderLocked(endpointId string) {
 	sender, ok := p.senders[endpointId]
 	if !ok {
 		return
@@ -124,7 +135,7 @@ func (p *Provider) removeSenderLocked(endpointId string) {
 	sender.Destroy()
 }
 
-func (p *Provider) selectSender() (*RpcSender, error) {
+func (p *rpcProvider) selectSender() (*RpcSender, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -151,7 +162,7 @@ func (p *Provider) selectSender() (*RpcSender, error) {
 	return ready[0], nil
 }
 
-func (p *Provider) selectSenderByService(serviceId string) (*RpcSender, error) {
+func (p *rpcProvider) selectSenderByService(serviceId string) (*RpcSender, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -167,7 +178,7 @@ func (p *Provider) selectSenderByService(serviceId string) (*RpcSender, error) {
 	return nil, ErrServiceNotFound
 }
 
-func (p *Provider) CallRpc(ctx context.Context, method string, req any, opts ...CallOption) (packet.Packet, error) {
+func (p *rpcProvider) CallRpc(ctx context.Context, method string, req any, opts ...CallOption) (packet.Packet, error) {
 	if p.ctx != nil {
 		select {
 		case <-p.ctx.Done():
@@ -203,17 +214,60 @@ func (p *Provider) CallRpc(ctx context.Context, method string, req any, opts ...
 	return sender.callRpcRaw(callCtx, method, payload, nil)
 }
 
-func (p *Provider) Stop() {
+func (p *rpcProvider) SendNotify(ctx context.Context, method string, req any, opts ...NotifyOption) error {
+	if p.ctx != nil {
+		select {
+		case <-p.ctx.Done():
+			return ErrProviderStopped
+		default:
+		}
+	}
+
+	options := NotifyOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	var sender *RpcSender
+	var err error
+	if options.TargetID != "" {
+		sender, err = p.selectSenderByService(options.TargetID)
+	} else {
+		sender, err = p.selectSender()
+	}
+	if err != nil {
+		return err
+	}
+
+	payload, err := sender.codec.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	return sender.sendNotifyRaw(ctx, method, payload, nil)
+}
+
+func (p *rpcProvider) Stop() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.refCount <= 0 {
+		return nil
+	}
+
+	p.refCount--
+	if p.refCount > 0 {
+		return nil
+	}
+
 	if p.cancel != nil {
 		p.cancel()
 	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	for id, sender := range p.senders {
 		sender.Destroy()
 		delete(p.senders, id)
 	}
 	p.sendersBySvc = make(map[string][]*RpcSender)
+	return nil
 }

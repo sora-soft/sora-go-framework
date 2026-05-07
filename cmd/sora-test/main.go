@@ -3,90 +3,130 @@ package main
 import (
 	"context"
 	"fmt"
-	"runtime/debug"
 	"time"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/component"
-	etcdDisc "github.com/sora-soft/sora-go-framework.git/pkg/discovery/store/etcd"
-	"github.com/sora-soft/sora-go-framework.git/pkg/logger"
-	nodePkg "github.com/sora-soft/sora-go-framework.git/pkg/node"
-	rtPkg "github.com/sora-soft/sora-go-framework.git/pkg/runtime"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runner"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runner/types"
+	ramDisc "github.com/sora-soft/sora-go-framework.git/pkg/discovery/store/ram"
+	jsoncodec "github.com/sora-soft/sora-go-framework.git/pkg/rpc/codec/json"
+	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/provider"
+	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/router"
+	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/transport/tcp"
+
+	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
 )
 
+type EchoRequest struct {
+	Message string `json:"message"`
+}
+
+type EchoResponse struct {
+	Message string `json:"message"`
+	Time    string `json:"time"`
+}
+
 func main() {
-	rt := rtPkg.RT
 	ctx := context.Background()
 
-	consoleOutput := logger.NewConsoleOutput(
-		logger.LogLevelDebug,
-		logger.LogLevelInfo,
-		logger.LogLevelSuccess,
-		logger.LogLevelWarn,
-		logger.LogLevelError,
-		logger.LogLevelFatal,
-	)
-	rt.FrameLogger.AddOutput(consoleOutput)
-	rt.RpcLogger.AddOutput(consoleOutput)
+	jsonCodec := &jsoncodec.JSONBufferCodec{}
+	rpc.RegisterCodec(jsonCodec)
 
-	log := logger.NewLogger("sora-test").AddOutput(consoleOutput)
+	backend := ramDisc.NewRamBackend()
+	disco := backend.Discovery()
+	registry := backend.Registry()
 
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Printf("Panic: %v\n", err)
-			fmt.Printf("Stack Trace:\n%s\n", debug.Stack())
-		}
-	}()
-
-	etcdComp := component.NewBaseEtcdComponent("etcd")
-	etcdComp.LoadOptions(&component.EtcdOptions{
-		Endpoints:   []string{"http://chitanda.xyyaya.com:2379"},
-		DialTimeout: 5 * time.Second,
+	tl, err := tcp.NewTCPListener(tcp.TCPListenerOptions{
+		Host:      "127.0.0.1",
+		PortRange: []int{19000, 19999},
 	})
-	if err := etcdComp.Start(ctx); err != nil {
-		log.Error("main", err, map[string]any{"event": "etcd_start_failed"})
-		return
-	}
-	rt.RegisterComponent("etcd", etcdComp)
-	log.Info("main", map[string]string{"event": "etcd_component_registered"})
-
-	backend := etcdDisc.NewEtcdBackend(etcdDisc.EtcdBackendOptions{
-		ComponentName: "etcd",
-		Prefix:        "sora-test",
-		TTL:           20,
-	})
-
-	nodeRunner := nodePkg.NewNodeRunner(nodePkg.NodeOptions{Version: "1.0.0"}, nil)
-	nodeSvc := runner.NewService("node", nodeRunner, types.ServiceOptions{})
-
-	if err := rt.Startup(ctx, nodeSvc, backend); err != nil {
-		log.Error("main", err, map[string]any{"event": "startup_failed"})
-		return
-	}
-	log.Info("main", map[string]string{"event": "runtime_started"})
-
-	time.Sleep(500 * time.Millisecond)
-
-	disc := rt.GetDiscovery()
-	services, err := disc.ListServices(ctx)
 	if err != nil {
-		log.Error("main", err, map[string]any{"event": "list_services_failed"})
-	} else {
-		fmt.Println("=== Service List ===")
-		for _, svc := range services {
-			fmt.Printf("  Name: %s | ID: %s | NodeID: %s | State: %d\n", svc.Name, svc.ID, svc.NodeID, svc.State)
-		}
-		if len(services) == 0 {
-			fmt.Println("  (empty)")
-		}
-		fmt.Println("====================")
+		fmt.Println("create tcp listener failed:", err)
+		return
 	}
 
-	if err := rt.Shutdown(); err != nil {
-		log.Error("main", err, map[string]any{"event": "shutdown_failed"})
+	r := router.NewRouter()
+
+	router.Method(r, "echo", func(conn *rpc.Connection, req EchoRequest) (EchoResponse, error) {
+		fmt.Printf("[Listener] received: %s\n", req.Message)
+		return EchoResponse{
+			Message: "echo: " + req.Message,
+			Time:    time.Now().Format(time.RFC3339),
+		}, nil
+	})
+
+	router.Notify(r, "ping", func(conn *rpc.Connection, msg EchoRequest) error {
+		fmt.Printf("[Listener] notify received: %s\n", msg.Message)
+		return nil
+	})
+
+	listener := rpc.NewListener(tl, utility.Labels{}, []rpc.Codec{jsonCodec}, rpc.ListenerCallbacks{
+		OnRequest: r.OnRequestCB(),
+		OnNotify:  r.OnNotifyCB(),
+		OnSessionOpen: func(conn *rpc.Connection, sessionId string) {
+			fmt.Println("[Listener] session opened:", sessionId)
+		},
+		OnSessionClose: func(conn *rpc.Connection, sessionId string) {
+			fmt.Println("[Listener] session closed:", sessionId)
+		},
+	})
+
+	if err := listener.Start(ctx); err != nil {
+		fmt.Println("listener start failed:", err)
+		return
 	}
-	etcdComp.Stop()
-	log.Info("main", "Shutdown complete")
-	log.Close()
+
+	meta := listener.GetMetaInfo()
+	fmt.Printf("[Listener] listening on %s\n", meta.Endpoint)
+
+	endpoint := discovery.EndpointMeta{
+		ID:         meta.Id,
+		Protocol:   meta.Protocol,
+		Endpoint:   meta.Endpoint,
+		Codecs:     meta.Codecs,
+		Weight:     100,
+		TargetID:   "svc-echo-001",
+		TargetName: "echo-service",
+	}
+	if err := registry.RegisterEndpoint(ctx, endpoint); err != nil {
+		fmt.Println("register endpoint failed:", err)
+		return
+	}
+	fmt.Println("[Discovery] endpoint registered:", endpoint.ID)
+
+	p := provider.NewProvider("echo-service", disco, provider.ProviderOptions{})
+	if err := p.Start(ctx); err != nil {
+		fmt.Println("provider start failed:", err)
+		return
+	}
+	fmt.Println("[Provider] started, waiting for sender to connect...")
+
+	time.Sleep(2 * time.Second)
+
+	for i := 0; i < 3; i++ {
+		fmt.Printf("\n--- Call %d ---\n", i+1)
+
+		req := EchoRequest{Message: fmt.Sprintf("hello world %d", i+1)}
+		resp, err := provider.CallRpc[EchoResponse](p, ctx, "echo", req)
+		if err != nil {
+			fmt.Println("CallRpc failed:", err)
+			continue
+		}
+
+		fmt.Printf("[Provider] response: message=%s time=%s\n", resp.Message, resp.Time)
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	fmt.Println("\n--- Test: unregistered method ---")
+	{
+		_, err := provider.CallRpc[any](p, ctx, "nonexistent", EchoRequest{Message: "test"})
+		if err != nil {
+			fmt.Printf("[Provider] unregistered method error: %v (expected ERR_METHOD_NOT_FOUND)\n", err)
+		}
+	}
+
+	_ = p.Stop()
+	listener.Stop()
+
+	fmt.Println("\ndone")
 }

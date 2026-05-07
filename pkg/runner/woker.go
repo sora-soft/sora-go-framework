@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sora-soft/sora-go-framework.git/pkg/component"
+	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/provider"
 	"github.com/sora-soft/sora-go-framework.git/pkg/runner/types"
 	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
 )
@@ -27,6 +28,8 @@ type baseWorker struct {
 	LifeCycle  *utility.LifeCycle[types.WorkerState]
 	components []component.Component
 	compMu     sync.Mutex
+	providers  []provider.Provider
+	provMu     sync.Mutex
 }
 
 func (b *baseWorker) ConnectComponent(ctx context.Context, c component.Component) error {
@@ -39,9 +42,25 @@ func (b *baseWorker) ConnectComponent(ctx context.Context, c component.Component
 	return nil
 }
 
+func (b *baseWorker) RegisterProvider(ctx context.Context, p provider.Provider) error {
+	if err := p.Start(ctx); err != nil {
+		return err
+	}
+	b.provMu.Lock()
+	b.providers = append(b.providers, p)
+	b.provMu.Unlock()
+	return nil
+}
+
 func (b *baseWorker) disconnectComponents() {
 	for _, c := range b.components {
 		c.Stop()
+	}
+}
+
+func (b *baseWorker) stopProviders() {
+	for _, p := range b.providers {
+		p.Stop()
 	}
 }
 
@@ -109,6 +128,7 @@ func (b *baseWorker) Stop() error {
 		return err
 	}
 
+	b.stopProviders()
 	b.disconnectComponents()
 
 	if err := b.LifeCycle.SetState(types.WorkerStateStopped); err != nil {

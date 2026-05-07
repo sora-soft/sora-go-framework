@@ -2,8 +2,12 @@
 Listener SHALL 实现状态机：`Init(1) → Starting(2) → Ready(3) → Stopping(4) → Stopped(5)`，任意状态可进入 `Error(100)`。状态迁移 SHALL 使用 `utility.LifeCycle[T]`。
 
 #### Scenario: 正常启动流程
-- **WHEN** 调用 `Start(ctx)` 且 TransportListener 已绑定
-- **THEN** 状态依次为 Init → Starting → Ready，Start 阻塞直到 Ready 后返回 nil
+- **WHEN** 调用 `Start(ctx)` 且 TransportListener 尚未绑定
+- **THEN** 状态依次为 Init → Starting，调用 `tl.StartListen(ctx)` 绑定地址，启动 acceptLoop，状态变为 Ready
+
+#### Scenario: StartListen 失败
+- **WHEN** 调用 `Start(ctx)` 且 `tl.StartListen(ctx)` 返回错误
+- **THEN** 状态为 Error，`Start` 返回错误，不启动 acceptLoop
 
 #### Scenario: 启动失败
 - **WHEN** 调用 `Start(ctx)` 且启动过程中发生错误
@@ -18,11 +22,15 @@ Listener 的 `Start` 方法 SHALL 阻塞直到状态变为 Ready 或发生错误
 
 #### Scenario: Start 阻塞直到就绪
 - **WHEN** 调用 `Start(ctx)`
-- **THEN** Start 阻塞，直到 Listener 进入 Ready 状态后返回 nil
+- **THEN** Start 阻塞，先调用 `tl.StartListen(ctx)` 绑定地址，再启动 acceptLoop，直到 Listener 进入 Ready 状态后返回 nil
 
 #### Scenario: Start 期间 context 取消
 - **WHEN** 调用 `Start(ctx)` 且 ctx 被取消
 - **THEN** Start 返回 context 错误
+
+#### Scenario: Start 期间 StartListen 失败
+- **WHEN** 调用 `Start(ctx)` 且 `tl.StartListen(ctx)` 返回错误
+- **THEN** 状态进入 Error，Start 返回 StartListen 的错误
 
 ### Requirement: Listener.Stop 关闭所有 session
 Listener 的 `Stop` 方法 SHALL 取消内部 context（终止 acceptLoop）、关闭 TransportListener、对所有已注册 session 调用 `Disconnect()`。

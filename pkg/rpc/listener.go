@@ -120,6 +120,11 @@ func (l *Listener) Start(ctx context.Context) error {
 		return err
 	}
 
+	if err := l.tl.StartListen(ctx); err != nil {
+		l.LifeCycle.SetStateWithError(ListenerStateError, err)
+		return err
+	}
+
 	go l.acceptLoop()
 
 	if err := l.LifeCycle.SetState(ListenerStateReady); err != nil {

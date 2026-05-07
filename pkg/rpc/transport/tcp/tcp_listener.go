@@ -19,7 +19,9 @@ type TCPListenerOptions struct {
 }
 
 type TCPListener struct {
+	opts     TCPListenerOptions
 	listener net.Listener
+	started  bool
 	connWg   sync.WaitGroup
 }
 
@@ -31,21 +33,31 @@ func NewTCPListener(opts TCPListenerOptions) (*TCPListener, error) {
 		return nil, errorx.New("ERR_TCP_OPTIONS_REQUIRED", errorx.LevelExpected, "TCPListenerError", "either Port or PortRange must be set", nil)
 	}
 
+	return &TCPListener{
+		opts: opts,
+	}, nil
+}
+
+func (l *TCPListener) StartListen(ctx context.Context) error {
+	if l.started {
+		return nil
+	}
+
 	var listener net.Listener
 	var err error
 
-	if opts.Port != 0 {
-		addr := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
+	if l.opts.Port != 0 {
+		addr := fmt.Sprintf("%s:%d", l.opts.Host, l.opts.Port)
 		listener, err = net.Listen("tcp", addr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	} else {
-		min := opts.PortRange[0]
-		max := opts.PortRange[1]
+		min := l.opts.PortRange[0]
+		max := l.opts.PortRange[1]
 		current := min
 		for {
-			addr := fmt.Sprintf("%s:%d", opts.Host, current)
+			addr := fmt.Sprintf("%s:%d", l.opts.Host, current)
 			listener, err = net.Listen("tcp", addr)
 			if err == nil {
 				break
@@ -53,17 +65,21 @@ func NewTCPListener(opts TCPListenerOptions) (*TCPListener, error) {
 			step := rand.Intn(5) + 1
 			current += step
 			if current > max {
-				return nil, errorx.New("ERR_TCP_NO_AVAILABLE_PORT", errorx.LevelUnexpected, "TCPListenerError", "no available port in range", map[string]any{"min": min, "max": max})
+				return errorx.New("ERR_TCP_NO_AVAILABLE_PORT", errorx.LevelUnexpected, "TCPListenerError", "no available port in range", map[string]any{"min": min, "max": max})
 			}
 		}
 	}
 
-	return &TCPListener{
-		listener: listener,
-	}, nil
+	l.listener = listener
+	l.started = true
+	return nil
 }
 
 func (l *TCPListener) Accept(ctx context.Context) (*rpc.Connection, error) {
+	if !l.started {
+		return nil, errorx.New("ERR_TCP_NOT_STARTED", errorx.LevelExpected, "TCPListenerError", "StartListen must be called before Accept", nil)
+	}
+
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -96,6 +112,10 @@ func (l *TCPListener) Accept(ctx context.Context) (*rpc.Connection, error) {
 }
 
 func (l *TCPListener) Close() error {
+	if l.listener == nil {
+		return nil
+	}
+
 	err := l.listener.Close()
 
 	done := make(chan struct{})
@@ -113,6 +133,12 @@ func (l *TCPListener) Close() error {
 }
 
 func (l *TCPListener) GetMetaInfo() rpc.TransportMetaInfo {
+	if !l.started {
+		return rpc.TransportMetaInfo{
+			Protocol: "tcp",
+			Endpoint: "",
+		}
+	}
 	return rpc.TransportMetaInfo{
 		Protocol: "tcp",
 		Endpoint: l.listener.Addr().String(),
@@ -120,6 +146,9 @@ func (l *TCPListener) GetMetaInfo() rpc.TransportMetaInfo {
 }
 
 func (l *TCPListener) Addr() string {
+	if !l.started {
+		return ""
+	}
 	return l.listener.Addr().String()
 }
 

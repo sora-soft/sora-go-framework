@@ -14,7 +14,6 @@ import (
 
 type RpcSender struct {
 	endpoint       discovery.EndpointMeta
-	provider       *Provider
 	conn           *rpc.Connection
 	connMu         sync.RWMutex
 	pending        map[string]chan packet.Packet
@@ -25,10 +24,9 @@ type RpcSender struct {
 	cancel         context.CancelFunc
 }
 
-func NewRpcSender(endpoint discovery.EndpointMeta, provider *Provider, codec rpc.Codec, transportConf rpc.TransportConfig) *RpcSender {
+func NewRpcSender(endpoint discovery.EndpointMeta, codec rpc.Codec, transportConf rpc.TransportConfig) *RpcSender {
 	return &RpcSender{
 		endpoint:      endpoint,
-		provider:      provider,
 		pending:       make(map[string]chan packet.Packet),
 		codec:         codec,
 		transportConf: transportConf,
@@ -151,6 +149,20 @@ func (s *RpcSender) callRpcRaw(ctx context.Context, method string, payload []byt
 		s.pendingMu.Unlock()
 		return packet.Packet{}, ErrSenderStopped
 	}
+}
+
+func (s *RpcSender) sendNotifyRaw(ctx context.Context, method string, payload []byte, headers map[string]string) error {
+	pkt := packet.NewDecodedPacket(packet.PacketOpcodeNotify, method, "", headers, payload, s.codec)
+
+	s.connMu.RLock()
+	conn := s.conn
+	s.connMu.RUnlock()
+
+	if conn == nil {
+		return ErrConnectionLost
+	}
+
+	return conn.SendRaw(ctx, pkt)
 }
 
 func (s *RpcSender) failAllPending() {

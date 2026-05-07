@@ -5,6 +5,7 @@ import (
 
 	"github.com/sora-soft/sora-go-framework.git/pkg/component"
 	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/provider"
 )
 
 type Runner interface {
@@ -19,6 +20,7 @@ type Worker interface {
 	Go(fn func(ctx context.Context))
 	GetMetadata() WorkerMetaData
 	ConnectComponent(ctx context.Context, c component.Component) error
+	RegisterProvider(ctx context.Context, p provider.Provider) error
 }
 
 type Service interface {

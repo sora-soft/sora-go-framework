@@ -101,6 +101,7 @@ func (s *baseService) Stop() error {
 		return err
 	}
 
+	s.stopProviders()
 	s.disconnectComponents()
 
 	if err := s.LifeCycle.SetState(types.WorkerStateStopped); err != nil {

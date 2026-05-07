@@ -1,5 +1,5 @@
 ### Requirement: Runtime SHALL register components by name
-Runtime SHALL provide `RegisterComponent(name string, c component.Component)` that stores the Component in an internal map keyed by name. Registration SHALL NOT call `Start()` on the Component.
+Runtime SHALL provide `RegisterComponent(name string, c component.Component)` that stores the Component in an internal map keyed by name. Registration SHALL NOT call `Start()` on the Component. Runtime SHALL belong to the `pkg/runner` package (not `pkg/runner/runtime`).
 
 #### Scenario: Register stores component without starting
 - **WHEN** `rt.RegisterComponent("etcd", comp)` is called
@@ -27,3 +27,18 @@ All operations on the component registry SHALL be protected by `sync.RWMutex`.
 #### Scenario: Concurrent register and get
 - **WHEN** goroutine A calls `RegisterComponent` and goroutine B calls `GetComponent` simultaneously
 - **THEN** both operations SHALL complete without data race
+
+### Requirement: Runtime struct SHALL hold node and backend references
+Runtime struct SHALL contain `node *NodeRunner` and `backend discovery.Backend` fields, protected by a `sync.RWMutex` named `nodeMu`.
+
+#### Scenario: New Runtime has nil node and backend
+- **WHEN** `NewRuntime()` is called
+- **THEN** `rt.GetNode()` SHALL return nil
+- **AND** `rt.GetBackend()` SHALL return nil
+
+### Requirement: Runtime import shall include discovery package
+Runtime source file SHALL import `pkg/discovery` to support the Backend field and accessor methods.
+
+#### Scenario: Runtime compiles with discovery import
+- **WHEN** Runtime is defined in `pkg/runner/runtime.go`
+- **THEN** it SHALL import `github.com/sora-soft/sora-go-framework.git/pkg/discovery` without circular dependency

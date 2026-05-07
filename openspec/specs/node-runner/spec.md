@@ -13,7 +13,7 @@ NodeRunner SHALL implement the `ServiceRefAware` interface with `SetServiceRef(s
 - **THEN** the `ServiceRefAware.SetServiceRef` SHALL be called with the ServiceRef
 
 ### Requirement: NodeRunner installs Listeners during Startup
-NodeRunner SHALL accept a slice of `*rpc.Listener` at construction. During `Startup`, NodeRunner SHALL iterate over the listeners and call `svcRef.InstallListener(ctx, l)` for each one.
+NodeRunner SHALL accept a slice of `*rpc.Listener` at construction. During `Startup`, NodeRunner SHALL iterate over the listeners and call `svcRef.InstallListener(ctx, l)` for each one. NodeRunner SHALL access the global Runtime as `RT` (same package, no import required).
 
 #### Scenario: Startup installs all pre-configured listeners
 - **WHEN** `Startup(ctx)` is called on NodeRunner with 3 listeners configured
@@ -28,11 +28,11 @@ NodeRunner SHALL accept a slice of `*rpc.Listener` at construction. During `Star
 - **THEN** Startup SHALL return that error immediately without installing remaining listeners
 
 ### Requirement: NodeRunner registers NodeId during Startup
-NodeRunner SHALL call `runtime.RT.SetNodeId(svc.GetMetadata().Id)` during Startup after installing listeners. The NodeId SHALL be the ID of the wrapping Service.
+NodeRunner SHALL call `RT.SetNodeId(svc.GetMetadata().Id)` during Startup after installing listeners. The NodeId SHALL be the ID of the wrapping Service. `RT` SHALL be accessed directly without package qualifier.
 
 #### Scenario: Startup sets NodeId on Runtime
 - **WHEN** `Startup(ctx)` completes successfully
-- **THEN** `runtime.RT.NodeId()` SHALL return the Service's ID
+- **THEN** `RT.NodeId()` SHALL return the Service's ID
 
 ### Requirement: NodeRunner Shutdown is no-op
 NodeRunner's `Shutdown()` SHALL return nil without performing any cleanup. Listener and component lifecycle are managed by the wrapping Service.
