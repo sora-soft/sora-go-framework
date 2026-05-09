@@ -23,31 +23,31 @@ func (c *JSONBufferCodec) Unmarshal(data []byte, v any) error {
 }
 
 type requestWire struct {
-	Opcode  packet.PacketOpcode `json:"opcode"`
-	Method  string              `json:"method"`
-	Service string              `json:"service"`
-	Headers map[string]string   `json:"headers"`
-	Payload json.RawMessage     `json:"payload"`
+	Opcode  packet.PacketOpcode `json:"opcode" yaml:"opcode"`
+	Method  string              `json:"method" yaml:"method"`
+	Service string              `json:"service" yaml:"service"`
+	Headers map[string]string   `json:"headers" yaml:"headers"`
+	Payload json.RawMessage     `json:"payload" yaml:"payload"`
 }
 
 type responseWire struct {
-	Opcode  packet.PacketOpcode `json:"opcode"`
-	Headers map[string]string   `json:"headers"`
-	Payload json.RawMessage     `json:"payload"`
+	Opcode  packet.PacketOpcode `json:"opcode" yaml:"opcode"`
+	Headers map[string]string   `json:"headers" yaml:"headers"`
+	Payload json.RawMessage     `json:"payload" yaml:"payload"`
 }
 
 type notifyWire struct {
-	Opcode  packet.PacketOpcode `json:"opcode"`
-	Method  string              `json:"method"`
-	Service string              `json:"service"`
-	Headers map[string]string   `json:"headers"`
-	Payload json.RawMessage     `json:"payload"`
+	Opcode  packet.PacketOpcode `json:"opcode" yaml:"opcode"`
+	Method  string              `json:"method" yaml:"method"`
+	Service string              `json:"service" yaml:"service"`
+	Headers map[string]string   `json:"headers" yaml:"headers"`
+	Payload json.RawMessage     `json:"payload" yaml:"payload"`
 }
 
 type commandWire struct {
-	Opcode  packet.PacketOpcode     `json:"opcode"`
-	Command packet.ConnectorCommand `json:"command"`
-	Args    json.RawMessage         `json:"args"`
+	Opcode  packet.PacketOpcode     `json:"opcode" yaml:"opcode"`
+	Command packet.ConnectorCommand `json:"command" yaml:"command"`
+	Args    json.RawMessage         `json:"args" yaml:"args"`
 }
 
 func (c *JSONBufferCodec) EncodePacket(pkt packet.Packet) ([]byte, error) {
@@ -87,7 +87,7 @@ func (c *JSONBufferCodec) EncodePacket(pkt packet.Packet) ([]byte, error) {
 
 func (c *JSONBufferCodec) DecodePacket(data []byte) (packet.Packet, error) {
 	var header struct {
-		Opcode packet.PacketOpcode `json:"opcode"`
+		Opcode packet.PacketOpcode `json:"opcode" yaml:"opcode"`
 	}
 	if err := json.Unmarshal(data, &header); err != nil {
 		return packet.Packet{}, errorx.Wrap(err, "ERR_CODEC_DECODE_FAILED", errorx.LevelUnexpected, "JSONCodecError", "failed to decode opcode", nil)

@@ -2,125 +2,95 @@ package etcd
 
 import (
 	"context"
-	"sync"
+	"time"
 
 	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility/errorx"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/concurrency"
 )
 
 type etcdElection struct {
 	client      *clientv3.Client
 	electionKey string
 
-	mu        sync.Mutex
-	leader    *string
-	waiters   []chan struct{}
-	campaigns map[string]bool
+	session  *concurrency.Session
+	election *concurrency.Election
 }
 
-func (e *etcdElection) Campaign(ctx context.Context, id string) error {
-	e.mu.Lock()
-	if e.leader == nil {
-		e.leader = &id
-		if e.campaigns == nil {
-			e.campaigns = make(map[string]bool)
-		}
-		e.campaigns[id] = true
-		e.mu.Unlock()
-		return e.persistLeader(ctx, id)
-	}
-
-	waitCh := make(chan struct{})
-	e.waiters = append(e.waiters, waitCh)
-	e.mu.Unlock()
-
-	select {
-	case <-waitCh:
-		e.mu.Lock()
-		e.leader = &id
-		if e.campaigns == nil {
-			e.campaigns = make(map[string]bool)
-		}
-		e.campaigns[id] = true
-		e.mu.Unlock()
-		return e.persistLeader(ctx, id)
-	case <-ctx.Done():
-		e.mu.Lock()
-		for i, ch := range e.waiters {
-			if ch == waitCh {
-				e.waiters = append(e.waiters[:i], e.waiters[i+1:]...)
-				break
-			}
-		}
-		e.mu.Unlock()
-		return ctx.Err()
-	}
-}
-
-func (e *etcdElection) persistLeader(ctx context.Context, id string) error {
-	if e.client == nil {
-		return newNotConnectedError()
-	}
-	_, err := e.client.Put(ctx, e.electionKey, id)
-	return err
-}
-
-func (e *etcdElection) Resign(ctx context.Context) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if e.leader == nil {
+func (e *etcdElection) ensureSession(ctx context.Context) error {
+	if e.session != nil {
 		return nil
 	}
 
-	if e.client != nil {
-		_, _ = e.client.Delete(ctx, e.electionKey)
+	session, err := concurrency.NewSession(e.client)
+	if err != nil {
+		return err
 	}
-
-	e.leader = nil
-
-	if len(e.waiters) > 0 {
-		waitCh := e.waiters[0]
-		e.waiters = e.waiters[1:]
-		close(waitCh)
-	}
+	e.session = session
+	e.election = concurrency.NewElection(session, e.electionKey)
 	return nil
 }
 
-func (e *etcdElection) Leader(_ context.Context) (string, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if e.leader != nil {
-		return *e.leader, nil
+func (e *etcdElection) Campaign(ctx context.Context, id string) error {
+	if err := e.ensureSession(ctx); err != nil {
+		return err
 	}
+	return e.election.Campaign(ctx, id)
+}
 
-	if e.client != nil {
-		resp, err := e.client.Get(context.Background(), e.electionKey)
-		if err != nil {
-			return "", errorx.Wrap(err, "ERR_ETCD_OPERATION", errorx.LevelUnexpected, "ETCDElectionError", "failed to get leader", nil)
-		}
-		if len(resp.Kvs) > 0 {
-			val := string(resp.Kvs[0].Value)
-			e.leader = &val
-			return val, nil
-		}
+func (e *etcdElection) Resign(ctx context.Context) error {
+	if e.election == nil {
+		return nil
 	}
+	err := e.election.Resign(ctx)
+	if e.session != nil {
+		e.session.Close()
+		e.session = nil
+		e.election = nil
+	}
+	return err
+}
 
-	return "", nil
+func (e *etcdElection) Leader(ctx context.Context) (string, error) {
+	if e.election == nil {
+		return "", nil
+	}
+	resp, err := e.election.Leader(ctx)
+	if err != nil {
+		return "", nil
+	}
+	return string(resp.Kvs[0].Value), nil
 }
 
 func (e *etcdElection) Watch(ctx context.Context) <-chan string {
 	ch := make(chan string, 8)
 
-	e.mu.Lock()
-	if e.leader != nil {
-		ch <- *e.leader
-	} else {
-		ch <- ""
-	}
-	e.mu.Unlock()
+	go func() {
+		defer close(ch)
+
+		for {
+			current, err := e.Leader(ctx)
+			if err != nil {
+				select {
+				case ch <- "":
+				case <-ctx.Done():
+					return
+				}
+			} else {
+				select {
+				case ch <- current:
+				case <-ctx.Done():
+					return
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(1 * time.Second):
+			}
+		}
+	}()
 
 	return ch
 }

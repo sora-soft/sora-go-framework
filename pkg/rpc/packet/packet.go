@@ -15,16 +15,16 @@ const (
 )
 
 type PayloadError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Level   int    `json:"level"`
-	Name    string `json:"name"`
-	Args    any    `json:"args"`
+	Code    string `json:"code" yaml:"code"`
+	Message string `json:"message" yaml:"message"`
+	Level   int    `json:"level" yaml:"level"`
+	Name    string `json:"name" yaml:"name"`
+	Args    any    `json:"args" yaml:"args"`
 }
 
 type Response[T any] struct {
-	Error  *PayloadError `json:"error"`
-	Result T             `json:"result"`
+	Error  *PayloadError `json:"error" yaml:"error"`
+	Result T             `json:"result" yaml:"result"`
 }
 
 type ConnectorCommand string

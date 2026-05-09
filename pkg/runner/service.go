@@ -6,40 +6,40 @@ import (
 
 	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
 	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
 	"github.com/sora-soft/sora-go-framework.git/pkg/runner/types"
+	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
 	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
 )
 
-type baseService struct {
-	*baseWorker
+type BaseService[R types.Runner] struct {
+	*BaseWorker[R]
 	labels    utility.Labels
 	listeners []*rpc.Listener
 	lisnMu    sync.Mutex
 }
 
-func NewService(name string, runner types.Runner, opts types.ServiceOptions) types.Service {
-	w := NewWorker(name, runner, opts.WorkerOptions).(*baseWorker)
+func NewService[R types.Runner](name types.ServiceName, runner R, opts types.ServiceOptions) *BaseService[R] {
+	w := NewWorker[R](types.WorkerName(name), runner, opts.WorkerOptions)
 
-	s := &baseService{
-		baseWorker: w,
+	s := &BaseService[R]{
+		BaseWorker: w,
 		labels:     opts.Labels,
 	}
 
-	if aware, ok := runner.(types.ServiceAware); ok {
+	if aware, ok := any(runner).(types.ServiceAware); ok {
 		aware.SetService(s)
-	} else if aware, ok := runner.(types.WorkerAware); ok {
+	} else if aware, ok := any(runner).(types.WorkerAware); ok {
 		aware.SetWorker(s)
 	}
 
 	return s
 }
 
-func (s *baseService) Start(ctx context.Context) error {
-	return s.baseWorker.Start(ctx)
+func (s *BaseService[R]) Start(ctx context.Context) error {
+	return s.BaseWorker.Start(ctx)
 }
 
-func (s *baseService) InstallListener(ctx context.Context, l *rpc.Listener) error {
+func (s *BaseService[R]) InstallListener(ctx context.Context, l *rpc.Listener) error {
 	if err := l.Start(ctx); err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (s *baseService) InstallListener(ctx context.Context, l *rpc.Listener) erro
 				s.lisnMu.Lock()
 				epMeta := discovery.NewEndpointMetaFromListener(l.GetMetaInfo())
 				epMeta.TargetID = s.GetId()
-				epMeta.TargetName = s.Name
+				epMeta.TargetName = string(s.Name)
 				epMeta.Weight = 100
 				s.lisnMu.Unlock()
 				reg := runtime.RT.GetDiscoveryRegistry()
@@ -77,13 +77,13 @@ func (s *baseService) InstallListener(ctx context.Context, l *rpc.Listener) erro
 	return nil
 }
 
-func (s *baseService) stopListeners() {
+func (s *BaseService[R]) stopListeners() {
 	for _, l := range s.listeners {
 		l.Stop()
 	}
 }
 
-func (s *baseService) Stop() error {
+func (s *BaseService[R]) Stop() error {
 	s.running.Store(false)
 
 	if err := s.LifeCycle.SetState(types.WorkerStateStopping); err != nil {
@@ -97,7 +97,7 @@ func (s *baseService) Stop() error {
 	}
 	s.wg.Wait()
 
-	if err := s.Runner.Shutdown(); err != nil {
+	if err := s.runner.Shutdown(); err != nil {
 		return err
 	}
 
@@ -111,12 +111,16 @@ func (s *baseService) Stop() error {
 	return nil
 }
 
-func (s *baseService) ListenLifeCycle() chan types.WorkerState {
+func (s *BaseService[R]) ListenLifeCycle() chan types.WorkerState {
 	return s.LifeCycle.Listen()
 }
 
-func (s *baseService) GetMetadata() types.WorkerMetaData {
-	meta := s.baseWorker.GetMetadata()
+func (s *BaseService[R]) GetMetadata() types.WorkerMetaData {
+	meta := s.BaseWorker.GetMetadata()
 	meta.Labels = s.labels
 	return meta
+}
+
+func (s *BaseService[R]) Runner() R {
+	return s.BaseWorker.Runner()
 }

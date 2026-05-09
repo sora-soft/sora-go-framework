@@ -17,12 +17,12 @@ import (
 )
 
 type EchoRequest struct {
-	Message string `json:"message"`
+	Message string `json:"message" yaml:"message"`
 }
 
 type EchoResponse struct {
-	Message string `json:"message"`
-	Time    string `json:"time"`
+	Message string `json:"message" yaml:"message"`
+	Time    string `json:"time" yaml:"time"`
 }
 
 func main() {

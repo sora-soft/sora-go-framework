@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/sora-soft/sora-go-framework.git/pkg/component"
+	etcdcomp "github.com/sora-soft/sora-go-framework.git/pkg/component/etcd"
 	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
 	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
 	"go.etcd.io/etcd/api/v3/mvccpb"
@@ -14,24 +15,21 @@ import (
 )
 
 type EtcdBackendOptions struct {
-	ComponentName string
-	Prefix        string
-	TTL           int64
+	EtcdComponentName string `json:"etcdComponentName" yaml:"etcdComponentName"`
+	Scope             string `json:"scope" yaml:"scope"`
 }
 
 type EtcdBackend struct {
 	options  EtcdBackendOptions
+	comp     component.Component
 	client   *clientv3.Client
-	lease    clientv3.Lease
-	leaseID  clientv3.LeaseID
 	store    *store
 	registry *etcdRegistry
 	discover *etcdDiscovery
 
-	keepAliveCtx    context.Context
-	keepAliveCancel context.CancelFunc
-
-	watchers []clientv3.Watcher
+	watchCtx    context.Context
+	watchCancel context.CancelFunc
+	watchers    []clientv3.Watcher
 
 	electionsMu sync.Mutex
 	elections   map[string]*etcdElection
@@ -47,36 +45,27 @@ func NewEtcdBackend(options EtcdBackendOptions) *EtcdBackend {
 }
 
 func (b *EtcdBackend) Connect(ctx context.Context) error {
-	c, ok := runtime.RT.GetComponent(b.options.ComponentName)
-	if !ok {
-		return newComponentNotFoundError(b.options.ComponentName)
+	comp, err := runtime.GetComponentOf[*etcdcomp.EtcdComponent](component.ComponentName(b.options.EtcdComponentName))
+	if err != nil {
+		return err
 	}
 
-	etcdComp, ok := c.(*component.BaseEtcdComponent)
-	if !ok {
-		return newComponentTypeError(b.options.ComponentName)
+	if err := comp.Start(ctx); err != nil {
+		return err
 	}
+	b.comp = comp
 
-	b.client = etcdComp.Client()
+	impl := comp.Impl()
+	b.client = impl.Client()
 	if b.client == nil {
 		return newNotConnectedError()
 	}
 
-	lease := clientv3.NewLease(b.client)
-	resp, err := lease.Grant(ctx, b.options.TTL)
-	if err != nil {
-		return err
-	}
-	b.lease = lease
-	b.leaseID = resp.ID
+	impl.OnLeaseReconnect(func(leaseID clientv3.LeaseID, err error) {
+		b.handleLeaseReconnect(leaseID, err)
+	})
 
-	b.keepAliveCtx, b.keepAliveCancel = context.WithCancel(context.Background())
-	ch, err := lease.KeepAlive(b.keepAliveCtx, resp.ID)
-	if err != nil {
-		lease.Revoke(ctx, resp.ID)
-		return err
-	}
-	go b.drainKeepAlive(ch)
+	b.watchCtx, b.watchCancel = context.WithCancel(context.Background())
 
 	if err := b.initFromEtcd(ctx); err != nil {
 		b.Disconnect()
@@ -88,21 +77,21 @@ func (b *EtcdBackend) Connect(ctx context.Context) error {
 		return err
 	}
 
-	b.registry = &etcdRegistry{backend: b}
+	b.registry = newEtcdRegistry(b, impl)
 	b.discover = &etcdDiscovery{store: b.store}
 	return nil
 }
 
-func (b *EtcdBackend) drainKeepAlive(ch <-chan *clientv3.LeaseKeepAliveResponse) {
-	for range ch {
-	}
+func (b *EtcdBackend) handleLeaseReconnect(leaseID clientv3.LeaseID, _ error) {
+	ctx := context.Background()
+	b.registry.reRegisterAll(ctx, leaseID)
 }
 
 func (b *EtcdBackend) initFromEtcd(ctx context.Context) error {
 	entityTypes := []entityType{entityService, entityEndpoint, entityNode}
 
 	for _, et := range entityTypes {
-		prefix := entityPrefix(b.options.Prefix, et)
+		prefix := entityPrefix(b.options.Scope, et)
 		resp, err := b.client.Get(ctx, prefix, clientv3.WithPrefix())
 		if err != nil {
 			return err
@@ -110,10 +99,8 @@ func (b *EtcdBackend) initFromEtcd(ctx context.Context) error {
 		for _, kv := range resp.Kvs {
 			key := string(kv.Key)
 			id := key[len(prefix)+1:]
-			println("etcd init key: " + key)
 			switch et {
 			case entityNode:
-				println("entityNode!!!")
 				b.store.updateNode(&mvccpb.KeyValue{
 					Key:            []byte(id),
 					CreateRevision: kv.CreateRevision,
@@ -121,7 +108,6 @@ func (b *EtcdBackend) initFromEtcd(ctx context.Context) error {
 					Value:          kv.Value,
 				})
 			case entityService:
-				println("entityService!!!" + id)
 				b.store.updateService(&mvccpb.KeyValue{
 					Key:            []byte(id),
 					CreateRevision: kv.CreateRevision,
@@ -148,17 +134,17 @@ func (b *EtcdBackend) startWatchers() error {
 		onDel  func(kv *mvccpb.KeyValue)
 		prefix string
 	}{
-		{entityNode, b.store.updateNode, b.handleDeleteNode, entityPrefix(b.options.Prefix, entityNode)},
-		{entityService, b.store.updateService, b.handleDeleteService, entityPrefix(b.options.Prefix, entityService)},
-		{entityWorker, b.store.updateWorker, b.handleDeleteWorker, entityPrefix(b.options.Prefix, entityWorker)},
-		{entityEndpoint, b.store.updateEndpoint, b.handleDeleteEndpoint, entityPrefix(b.options.Prefix, entityEndpoint)},
+		{entityNode, b.store.updateNode, b.handleDeleteNode, entityPrefix(b.options.Scope, entityNode)},
+		{entityService, b.store.updateService, b.handleDeleteService, entityPrefix(b.options.Scope, entityService)},
+		{entityWorker, b.store.updateWorker, b.handleDeleteWorker, entityPrefix(b.options.Scope, entityWorker)},
+		{entityEndpoint, b.store.updateEndpoint, b.handleDeleteEndpoint, entityPrefix(b.options.Scope, entityEndpoint)},
 	}
 
 	for _, target := range watchTargets {
 		watcher := clientv3.NewWatcher(b.client)
 		b.watchers = append(b.watchers, watcher)
 
-		wc := watcher.Watch(context.Background(), target.prefix, clientv3.WithPrefix())
+		wc := watcher.Watch(b.watchCtx, target.prefix, clientv3.WithPrefix())
 		go b.watchLoop(wc, target.et, target.prefix, target.onPut, target.onDel)
 	}
 
@@ -203,8 +189,9 @@ func (b *EtcdBackend) watchLoop(wc clientv3.WatchChan, et entityType, prefix str
 }
 
 func (b *EtcdBackend) Disconnect() error {
-	if b.keepAliveCancel != nil {
-		b.keepAliveCancel()
+	if b.watchCancel != nil {
+		b.watchCancel()
+		b.watchCancel = nil
 	}
 
 	for _, w := range b.watchers {
@@ -212,12 +199,12 @@ func (b *EtcdBackend) Disconnect() error {
 	}
 	b.watchers = nil
 
-	if b.lease != nil {
-		b.lease.Close()
-		b.lease = nil
-	}
-
 	b.client = nil
+
+	if b.comp != nil {
+		b.comp.Stop()
+		b.comp = nil
+	}
 
 	return nil
 }
@@ -238,7 +225,7 @@ func (b *EtcdBackend) NewElection(name string) discovery.Election {
 		return e
 	}
 
-	electionPath := filepath.Join(b.options.Prefix, "singleton", name)
+	electionPath := filepath.Join(b.options.Scope, "singleton", name)
 	e := &etcdElection{
 		client:      b.client,
 		electionKey: electionPath,
@@ -254,7 +241,7 @@ func (b *EtcdBackend) GetInfo() discovery.BackendInfo {
 	}
 }
 
-func (b *EtcdBackend) putWithLease(ctx context.Context, key string, value any) error {
+func (b *EtcdBackend) putWithLease(ctx context.Context, key string, value any, leaseID clientv3.LeaseID) error {
 	if b.client == nil {
 		return newNotConnectedError()
 	}
@@ -264,7 +251,7 @@ func (b *EtcdBackend) putWithLease(ctx context.Context, key string, value any) e
 		return err
 	}
 
-	_, err = b.client.Put(ctx, key, string(data), clientv3.WithLease(b.leaseID))
+	_, err = b.client.Put(ctx, key, string(data), clientv3.WithLease(leaseID))
 	return err
 }
 

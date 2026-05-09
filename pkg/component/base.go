@@ -5,24 +5,24 @@ import (
 	"sync"
 )
 
-type baseComponent struct {
-	componentImpl
-	Name     string
+type BaseComponent[T ComponentImpl] struct {
+	impl     T
+	Name     ComponentName
 	ready    bool
 	refCount int
 	mu       sync.Mutex
 }
 
-func NewBaseComponent(name string, impl componentImpl) *baseComponent {
-	return &baseComponent{
-		componentImpl: impl,
-		Name:          name,
-		ready:         false,
-		refCount:      0,
+func NewBaseComponent[T ComponentImpl](name ComponentName, impl T) *BaseComponent[T] {
+	return &BaseComponent[T]{
+		impl:     impl,
+		Name:     name,
+		ready:    false,
+		refCount: 0,
 	}
 }
 
-func (b *baseComponent) Start(ctx context.Context) error {
+func (b *BaseComponent[T]) Start(ctx context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -31,7 +31,7 @@ func (b *baseComponent) Start(ctx context.Context) error {
 		return nil
 	}
 
-	if err := b.componentImpl.Connect(ctx); err != nil {
+	if err := b.impl.Connect(ctx); err != nil {
 		return err
 	}
 
@@ -40,7 +40,7 @@ func (b *baseComponent) Start(ctx context.Context) error {
 	return nil
 }
 
-func (b *baseComponent) Stop() error {
+func (b *BaseComponent[T]) Stop() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -53,23 +53,27 @@ func (b *baseComponent) Stop() error {
 		return nil
 	}
 
-	err := b.componentImpl.Disconnect()
+	err := b.impl.Disconnect()
 	b.ready = false
 	return err
 }
 
-func (b *baseComponent) LoadOptions(opts any) error {
-	return b.componentImpl.SetOptions(opts)
+func (b *BaseComponent[T]) LoadOptions(opts any) error {
+	return b.impl.SetOptions(opts)
 }
 
-func (b *baseComponent) GetMetaInfo() ComponentMetadata {
+func (b *BaseComponent[T]) GetMetaInfo() ComponentMetadata {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	return ComponentMetadata{
-		Name:    b.Name,
+		Name:    string(b.Name),
 		Ready:   b.ready,
-		Version: b.componentImpl.GetVersion(),
-		Options: b.componentImpl.GetOptions(),
+		Version: b.impl.GetVersion(),
+		Options: b.impl.GetOptions(),
 	}
+}
+
+func (b *BaseComponent[T]) Impl() T {
+	return b.impl
 }

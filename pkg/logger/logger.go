@@ -60,11 +60,11 @@ type LoggerOutput interface {
 }
 
 type errorMessageData struct {
-	Code    string `json:"code"`
-	Name    string `json:"name"`
-	Message string `json:"message"`
-	Stack   []string `json:"stack"`
-	Extra   any     `json:"args,omitempty"`
+	Code    string `json:"code" yaml:"code"`
+	Name    string `json:"name" yaml:"name"`
+	Message string `json:"message" yaml:"message"`
+	Stack   []string `json:"stack" yaml:"stack"`
+	Extra   any     `json:"args,omitempty" yaml:"args,omitempty"`
 }
 
 func ErrorMessage(err error) any {

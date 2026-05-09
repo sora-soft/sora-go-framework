@@ -6,36 +6,36 @@ import (
 
 	"github.com/sora-soft/sora-go-framework.git/pkg/component"
 	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
+	"github.com/sora-soft/sora-go-framework.git/pkg/runner"
 	"github.com/sora-soft/sora-go-framework.git/pkg/runner/types"
+	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
 )
 
 type NodeVersions struct {
-	Framework string `json:"framework,omitempty"`
-	App       string `json:"app,omitempty"`
+	Framework string `json:"framework,omitempty" yaml:"framework,omitempty"`
+	App       string `json:"app,omitempty" yaml:"app,omitempty"`
 }
 
 type NodeMetaData struct {
-	Id        string                  `json:"id,omitempty"`
-	Alias     *string                 `json:"alias,omitempty"`
-	Host      string                  `json:"host,omitempty"`
-	Pid       int                     `json:"pid,omitempty"`
-	Endpoints []rpc.ListenerMetaInfo  `json:"endpoints,omitempty"`
-	State     types.WorkerState       `json:"state,omitempty"`
-	StartTime int64                   `json:"startTime,omitempty"`
-	Versions  NodeVersions            `json:"versions,omitempty"`
+	Id        string                 `json:"id,omitempty" yaml:"id,omitempty"`
+	Alias     *string                `json:"alias,omitempty" yaml:"alias,omitempty"`
+	Host      string                 `json:"host,omitempty" yaml:"host,omitempty"`
+	Pid       int                    `json:"pid,omitempty" yaml:"pid,omitempty"`
+	Endpoints []rpc.ListenerMetaInfo `json:"endpoints,omitempty" yaml:"endpoints,omitempty"`
+	State     types.WorkerState      `json:"state,omitempty" yaml:"state,omitempty"`
+	StartTime int64                  `json:"startTime,omitempty" yaml:"startTime,omitempty"`
+	Versions  NodeVersions           `json:"versions,omitempty" yaml:"versions,omitempty"`
 }
 
 type NodeRunData struct {
-	Node       NodeMetaData                  `json:"node"`
-	Components []component.ComponentMetadata `json:"components"`
-	Services   []types.WorkerMetaData        `json:"services"`
-	Workers    []types.WorkerMetaData        `json:"workers"`
+	Node       NodeMetaData                  `json:"node" yaml:"node"`
+	Components []component.ComponentMetadata `json:"components" yaml:"components"`
+	Services   []types.WorkerMetaData        `json:"services" yaml:"services"`
+	Workers    []types.WorkerMetaData        `json:"workers" yaml:"workers"`
 }
 
 type NodeOptions struct {
-	types.WorkerOptions
-	Version string `json:"version,omitempty"`
+	types.ServiceOptions
 }
 
 type NodeRunner struct {
@@ -46,13 +46,13 @@ type NodeRunner struct {
 	pid       int
 }
 
-func NewNodeRunner(opts NodeOptions, listeners []*rpc.Listener) *NodeRunner {
-	return &NodeRunner{
+func NewNodeService(opts NodeOptions, listeners []*rpc.Listener) *runner.BaseService[*NodeRunner] {
+	return runner.NewService("node", &NodeRunner{
 		options:   opts,
 		listeners: listeners,
 		host:      mustHostname(),
 		pid:       os.Getpid(),
-	}
+	}, opts.ServiceOptions)
 }
 
 func mustHostname() string {
@@ -88,7 +88,7 @@ func (n *NodeRunner) StateData() NodeMetaData {
 		Pid:   n.pid,
 		Versions: NodeVersions{
 			Framework: "0.0.0",
-			App:       n.options.Version,
+			App:       "0.0.0",
 		},
 	}
 

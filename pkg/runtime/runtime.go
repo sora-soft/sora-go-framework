@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -18,7 +19,7 @@ type Runtime struct {
 	FrameLogger *logger.Logger
 	RpcLogger   *logger.Logger
 
-	components map[string]component.Component
+	components map[component.ComponentName]component.Component
 	compMu     sync.RWMutex
 
 	services map[string]types.Service
@@ -38,7 +39,7 @@ func NewRuntime() *Runtime {
 		root:        mustGetwd(),
 		FrameLogger: logger.NewLogger("framework"),
 		RpcLogger:   logger.NewLogger("rpc"),
-		components:  make(map[string]component.Component),
+		components:  make(map[component.ComponentName]component.Component),
 		services:    make(map[string]types.Service),
 		workers:     make(map[string]types.Worker),
 	}
@@ -71,17 +72,29 @@ func (r *Runtime) NodeId() string {
 	return r.node.GetId()
 }
 
-func (r *Runtime) RegisterComponent(name string, c component.Component) {
+func (r *Runtime) RegisterComponent(name component.ComponentName, c component.Component) {
 	r.compMu.Lock()
 	r.components[name] = c
 	r.compMu.Unlock()
 }
 
-func (r *Runtime) GetComponent(name string) (component.Component, bool) {
+func (r *Runtime) GetComponent(name component.ComponentName) (component.Component, bool) {
 	r.compMu.RLock()
 	c, ok := r.components[name]
 	r.compMu.RUnlock()
 	return c, ok
+}
+
+func GetComponentOf[T component.ComponentImpl](name component.ComponentName) (*component.BaseComponent[T], error) {
+	c, ok := RT.GetComponent(name)
+	if !ok {
+		return nil, fmt.Errorf("component not found: %s", name)
+	}
+	bc, ok := c.(*component.BaseComponent[T])
+	if !ok {
+		return nil, fmt.Errorf("component type mismatch: %s", name)
+	}
+	return bc, nil
 }
 
 func (r *Runtime) GetAllComponents() []component.Component {
@@ -109,7 +122,7 @@ func (r *Runtime) InstallService(ctx context.Context, svc types.Service) error {
 					if reg != nil {
 						meta := svc.GetMetadata()
 						svcMeta := discovery.ServiceMeta{
-							Name:      meta.Name,
+							Name:      string(meta.Name),
 							ID:        meta.Id,
 							Alias:     meta.Alias,
 							State:     int(meta.State),
@@ -147,7 +160,7 @@ func (r *Runtime) InstallWorker(w types.Worker) {
 					if reg != nil {
 						meta := w.GetMetadata()
 						workerMeta := discovery.WorkerMeta{
-							Name:      meta.Name,
+							Name:      string(meta.Name),
 							ID:        meta.Id,
 							Alias:     meta.Alias,
 							State:     int(meta.State),

@@ -14,8 +14,8 @@ type Transport interface {
 }
 
 type TransportMetaInfo struct {
-	Protocol string `json:"protocol"`
-	Endpoint string `json:"endpoint"`
+	Protocol string `json:"protocol" yaml:"protocol"`
+	Endpoint string `json:"endpoint" yaml:"endpoint"`
 }
 
 type TransportFactory func() Transport

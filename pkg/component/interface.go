@@ -9,7 +9,7 @@ type Component interface {
 	GetMetaInfo() ComponentMetadata
 }
 
-type componentImpl interface {
+type ComponentImpl interface {
 	Connect(ctx context.Context) error
 	Disconnect() error
 	SetOptions(opts any) error
@@ -18,8 +18,10 @@ type componentImpl interface {
 }
 
 type ComponentMetadata struct {
-	Name    string `json:"name"`
-	Ready   bool   `json:"ready"`
-	Version string `json:"version"`
-	Options any    `json:"options,omitempty"`
+	Name    string `json:"name" yaml:"name"`
+	Ready   bool   `json:"ready" yaml:"ready"`
+	Version string `json:"version" yaml:"version"`
+	Options any    `json:"options,omitempty" yaml:"options,omitempty"`
 }
+
+type ComponentName string

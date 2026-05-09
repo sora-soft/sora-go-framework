@@ -8,6 +8,9 @@ import (
 
 type WorkerState int
 
+type ServiceName string
+type WorkerName string
+
 const (
 	WorkerStateInit     WorkerState = 1
 	WorkerStatePending  WorkerState = 2
@@ -37,10 +40,10 @@ func (s WorkerState) String() string {
 }
 
 type WorkerMetaData struct {
-	Name      string         `json:"name,omitempty"`
-	Alias     *string        `json:"alias,omitempty"`
-	State     WorkerState    `json:"state,omitempty"`
-	Id        string         `json:"id,omitempty"`
-	StartTime int64          `json:"startTime,omitempty"`
-	Labels    utility.Labels `json:"labels,omitempty"`
+	Name      WorkerName     `json:"name,omitempty" yaml:"name,omitempty"`
+	Alias     *string        `json:"alias,omitempty" yaml:"alias,omitempty"`
+	State     WorkerState    `json:"state,omitempty" yaml:"state,omitempty"`
+	Id        string         `json:"id,omitempty" yaml:"id,omitempty"`
+	StartTime int64          `json:"startTime,omitempty" yaml:"startTime,omitempty"`
+	Labels    utility.Labels `json:"labels,omitempty" yaml:"labels,omitempty"`
 }

@@ -13,9 +13,9 @@ import (
 	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
 )
 
-type baseWorker struct {
-	types.Runner
-	Name      string
+type BaseWorker[R types.Runner] struct {
+	runner    R
+	Name      types.WorkerName
 	Id        string
 	StartTime int64
 	options   types.WorkerOptions
@@ -32,7 +32,7 @@ type baseWorker struct {
 	provMu     sync.Mutex
 }
 
-func (b *baseWorker) ConnectComponent(ctx context.Context, c component.Component) error {
+func (b *BaseWorker[R]) ConnectComponent(ctx context.Context, c component.Component) error {
 	if err := c.Start(ctx); err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func (b *baseWorker) ConnectComponent(ctx context.Context, c component.Component
 	return nil
 }
 
-func (b *baseWorker) RegisterProvider(ctx context.Context, p provider.Provider) error {
+func (b *BaseWorker[R]) RegisterProvider(ctx context.Context, p provider.Provider) error {
 	if err := p.Start(ctx); err != nil {
 		return err
 	}
@@ -52,36 +52,36 @@ func (b *baseWorker) RegisterProvider(ctx context.Context, p provider.Provider) 
 	return nil
 }
 
-func (b *baseWorker) disconnectComponents() {
+func (b *BaseWorker[R]) disconnectComponents() {
 	for _, c := range b.components {
 		c.Stop()
 	}
 }
 
-func (b *baseWorker) stopProviders() {
+func (b *BaseWorker[R]) stopProviders() {
 	for _, p := range b.providers {
 		p.Stop()
 	}
 }
 
-func NewWorker(name string, runner types.Runner, options types.WorkerOptions) types.Worker {
-	w := &baseWorker{
+func NewWorker[R types.Runner](name types.WorkerName, runner R, options types.WorkerOptions) *BaseWorker[R] {
+	w := &BaseWorker[R]{
 		Name:      name,
 		Id:        uuid.New().String(),
 		StartTime: time.Now().Unix(),
 		LifeCycle: utility.NewLifeCycle(types.WorkerStateInit, false),
-		Runner:    runner,
+		runner:    runner,
 		options:   options,
 	}
 
-	if aware, ok := runner.(types.WorkerAware); ok {
+	if aware, ok := any(runner).(types.WorkerAware); ok {
 		aware.SetWorker(w)
 	}
 
 	return w
 }
 
-func (b *baseWorker) Start(ctx context.Context) (err error) {
+func (b *BaseWorker[R]) Start(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			b.disconnectComponents()
@@ -99,7 +99,7 @@ func (b *baseWorker) Start(ctx context.Context) (err error) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- b.Runner.Startup(b.ctx)
+		errCh <- b.runner.Startup(b.ctx)
 	}()
 
 	if err := <-errCh; err != nil {
@@ -112,7 +112,7 @@ func (b *baseWorker) Start(ctx context.Context) (err error) {
 	return nil
 }
 
-func (b *baseWorker) Stop() error {
+func (b *BaseWorker[R]) Stop() error {
 	b.running.Store(false)
 
 	if err := b.LifeCycle.SetState(types.WorkerStateStopping); err != nil {
@@ -124,7 +124,7 @@ func (b *baseWorker) Stop() error {
 	}
 	b.wg.Wait()
 
-	if err := b.Runner.Shutdown(); err != nil {
+	if err := b.runner.Shutdown(); err != nil {
 		return err
 	}
 
@@ -138,7 +138,7 @@ func (b *baseWorker) Stop() error {
 	return nil
 }
 
-func (b *baseWorker) Go(fn func(ctx context.Context)) {
+func (b *BaseWorker[R]) Go(fn func(ctx context.Context)) {
 	if !b.running.Load() {
 		return
 	}
@@ -148,11 +148,11 @@ func (b *baseWorker) Go(fn func(ctx context.Context)) {
 	})
 }
 
-func (b *baseWorker) GetId() string {
+func (b *BaseWorker[R]) GetId() string {
 	return b.Id
 }
 
-func (b *baseWorker) GetMetadata() types.WorkerMetaData {
+func (b *BaseWorker[R]) GetMetadata() types.WorkerMetaData {
 	return types.WorkerMetaData{
 		Name:      b.Name,
 		Alias:     b.options.Alias,
@@ -160,4 +160,8 @@ func (b *baseWorker) GetMetadata() types.WorkerMetaData {
 		Id:        b.Id,
 		StartTime: b.StartTime,
 	}
+}
+
+func (b *BaseWorker[R]) Runner() R {
+	return b.runner
 }

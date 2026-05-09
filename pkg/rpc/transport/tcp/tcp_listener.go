@@ -13,9 +13,9 @@ import (
 )
 
 type TCPListenerOptions struct {
-	Host      string
-	Port      int
-	PortRange []int
+	Host      string `json:"host" yaml:"host"`
+	Port      int    `json:"port" yaml:"port"`
+	PortRange []int  `json:"portRange" yaml:"portRange"`
 }
 
 type TCPListener struct {

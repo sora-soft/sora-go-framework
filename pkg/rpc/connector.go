@@ -222,7 +222,7 @@ func (c *Connection) handleCommand(pkt packet.Packet) error {
 	switch cmd {
 	case packet.ConnectorCommandPing:
 		var args struct {
-			Id int `json:"id"`
+			Id int `json:"id" yaml:"id"`
 		}
 		if err := json.Unmarshal(pkt.Payload(), &args); err != nil {
 			return err
@@ -230,7 +230,7 @@ func (c *Connection) handleCommand(pkt packet.Packet) error {
 		return c.sendPong(args.Id)
 	case packet.ConnectorCommandPong:
 		var args struct {
-			Id int `json:"id"`
+			Id int `json:"id" yaml:"id"`
 		}
 		if err := json.Unmarshal(pkt.Payload(), &args); err != nil {
 			return err
@@ -288,7 +288,7 @@ func (c *Connection) Disconnect() error {
 
 func (c *Connection) sendPing(id int) error {
 	args, err := json.Marshal(struct {
-		Id int `json:"id"`
+		Id int `json:"id" yaml:"id"`
 	}{Id: id})
 	if err != nil {
 		return err
@@ -298,7 +298,7 @@ func (c *Connection) sendPing(id int) error {
 
 func (c *Connection) sendPong(id int) error {
 	args, err := json.Marshal(struct {
-		Id int `json:"id"`
+		Id int `json:"id" yaml:"id"`
 	}{Id: id})
 	if err != nil {
 		return err

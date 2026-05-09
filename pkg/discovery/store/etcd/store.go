@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 )
 
@@ -189,7 +190,7 @@ func (s *store) updateNode(kv *mvccpb.KeyValue) {
 	id := string(kv.Key)
 	var meta discovery.NodeMeta
 	if err := json.Unmarshal(kv.Value, &meta); err != nil {
-		println(err)
+		runtime.RT.FrameLogger.Error("EtcdStore", err, "failed to unmarshal node meta")
 		return
 	}
 
@@ -211,9 +212,8 @@ func (s *store) updateNode(kv *mvccpb.KeyValue) {
 func (s *store) updateService(kv *mvccpb.KeyValue) {
 	id := string(kv.Key)
 	var meta discovery.ServiceMeta
-	println(string(kv.Value))
 	if err := json.Unmarshal(kv.Value, &meta); err != nil {
-		println(err.Error())
+		runtime.RT.FrameLogger.Error("EtcdStore", err, "failed to unmarshal service meta")
 		return
 	}
 
@@ -222,7 +222,6 @@ func (s *store) updateService(kv *mvccpb.KeyValue) {
 		s.mu.Unlock()
 		return
 	}
-	println("update service!!!" + id)
 	s.services[id] = meta
 	s.serviceRevisions[id] = revisionMeta{
 		createRevision: kv.CreateRevision,
@@ -263,6 +262,10 @@ func (s *store) updateEndpoint(kv *mvccpb.KeyValue) {
 	}
 
 	s.mu.Lock()
+	if _, ok := s.services[meta.TargetID]; !ok {
+		s.mu.Unlock()
+		return
+	}
 	if existing, ok := s.endpointRevisions[id]; ok && existing.modRevision >= kv.ModRevision {
 		s.mu.Unlock()
 		return

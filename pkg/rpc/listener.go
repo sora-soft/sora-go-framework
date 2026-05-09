@@ -12,9 +12,9 @@ import (
 )
 
 type ListenerInfo struct {
-	Protocol string   `json:"protocol"`
-	Endpoint string   `json:"endpoint"`
-	Codecs   []string `json:"codecs"`
+	Protocol string   `json:"protocol" yaml:"protocol"`
+	Endpoint string   `json:"endpoint" yaml:"endpoint"`
+	Codecs   []string `json:"codecs" yaml:"codecs"`
 	Labels   utility.Labels
 }
 
@@ -56,12 +56,12 @@ type ListenerCallbacks struct {
 }
 
 type ListenerMetaInfo struct {
-	Id       string         `json:"id"`
-	Protocol string         `json:"protocol"`
-	Endpoint string         `json:"endpoint"`
-	State    ListenerState  `json:"state"`
-	Labels   utility.Labels `json:"labels"`
-	Codecs   []string       `json:"codecs"`
+	Id       string         `json:"id" yaml:"id"`
+	Protocol string         `json:"protocol" yaml:"protocol"`
+	Endpoint string         `json:"endpoint" yaml:"endpoint"`
+	State    ListenerState  `json:"state" yaml:"state"`
+	Labels   utility.Labels `json:"labels" yaml:"labels"`
+	Codecs   []string       `json:"codecs" yaml:"codecs"`
 }
 
 type Listener struct {
