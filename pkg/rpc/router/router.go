@@ -11,13 +11,13 @@ import (
 	"github.com/sora-soft/sora-go-framework.git/pkg/utility/errorx"
 )
 
-type DispatchFunc func(conn *rpc.Connection, pkt packet.Packet) error
+type DispatchFunc func(ctx rpc.HandlerContext) error
 
 type Middleware func(next DispatchFunc) DispatchFunc
 
 type Router struct {
 	methodTable map[string]DispatchFunc
-	notifyTable map[string]func(conn *rpc.Connection, pkt packet.Packet)
+	notifyTable map[string]DispatchFunc
 	middlewares []Middleware
 	logger      *logger.Logger
 }
@@ -33,7 +33,7 @@ func WithLogger(l *logger.Logger) RouterOption {
 func NewRouter(opts ...RouterOption) *Router {
 	r := &Router{
 		methodTable: make(map[string]DispatchFunc),
-		notifyTable: make(map[string]func(conn *rpc.Connection, pkt packet.Packet)),
+		notifyTable: make(map[string]DispatchFunc),
 		logger:      runtime.RT.RpcLogger,
 	}
 	for _, opt := range opts {
@@ -42,33 +42,39 @@ func NewRouter(opts ...RouterOption) *Router {
 	return r
 }
 
-func Method[Req any, Resp any](r *Router, method string, handler func(conn *rpc.Connection, req Req) (Resp, error)) {
-	r.methodTable[method] = func(conn *rpc.Connection, pkt packet.Packet) error {
-		req, err := packet.Decode[Req](pkt)
+func Method[Req any, Resp any](r *Router, method string, handler func(ctx *rpc.RequestContext, req Req) (Resp, error)) {
+	r.methodTable[method] = func(ctx rpc.HandlerContext) error {
+		rc := ctx.(*rpc.RequestContext)
+		req, err := packet.Decode[Req](rc.Reader().Packet())
 		if err != nil {
-			r.sendDecodeErrorResponse(conn, pkt, method, err)
+			r.sendDecodeErrorResponse(rc, err)
 			return nil
 		}
-		resp, err := handler(conn, req)
+		resp, err := handler(rc, req)
 		if err != nil {
-			r.sendErrorResponse(conn, pkt, err)
+			r.sendErrorResponse(rc, err)
 			return nil
 		}
-		r.sendSuccessResponse(conn, pkt, resp)
+		r.sendSuccessResponse(rc, resp)
 		return nil
 	}
 }
 
-func Notify[Msg any](r *Router, method string, handler func(conn *rpc.Connection, msg Msg) error) {
-	r.notifyTable[method] = func(conn *rpc.Connection, pkt packet.Packet) {
-		msg, err := packet.Decode[Msg](pkt)
+func Notify[Msg any](r *Router, method string, handler func(ctx *rpc.NotifyContext, msg Msg) error) {
+	r.notifyTable[method] = func(ctx rpc.HandlerContext) error {
+		nc, ok := ctx.(*rpc.NotifyContext)
+		if !ok {
+			return nil
+		}
+		msg, err := packet.Decode[Msg](nc.Reader().Packet())
 		if err != nil {
 			r.logger.Error("notify.decode-failed", err, map[string]any{"method": method})
-			return
+			return nil
 		}
-		if err := handler(conn, msg); err != nil {
+		if err := handler(nc, msg); err != nil {
 			r.logger.Error("notify.handler-error", err, map[string]any{"method": method})
 		}
+		return nil
 	}
 }
 
@@ -79,13 +85,14 @@ func (r *Router) Use(mw Middleware) {
 func (r *Router) OnRequestCB() func(conn *rpc.Connection, pkt packet.Packet) {
 	chain := r.buildChain(r.dispatchRequest)
 	return func(conn *rpc.Connection, pkt packet.Packet) {
+		ctx := rpc.NewRequestContext(conn, pkt)
 		defer func() {
 			if rec := recover(); rec != nil {
-				r.sendErrorResponse(conn, pkt, fmt.Errorf("panic: %v", rec))
+				r.sendErrorResponse(ctx, fmt.Errorf("panic: %v", rec))
 			}
 		}()
-		if err := chain(conn, pkt); err != nil {
-			r.sendErrorResponse(conn, pkt, err)
+		if err := chain(ctx); err != nil {
+			r.sendErrorResponse(ctx, err)
 		}
 	}
 }
@@ -93,13 +100,14 @@ func (r *Router) OnRequestCB() func(conn *rpc.Connection, pkt packet.Packet) {
 func (r *Router) OnNotifyCB() func(conn *rpc.Connection, pkt packet.Packet) {
 	chain := r.buildChain(r.dispatchNotify)
 	return func(conn *rpc.Connection, pkt packet.Packet) {
+		ctx := rpc.NewNotifyContext(conn, pkt)
 		defer func() {
 			if rec := recover(); rec != nil {
-				r.logger.Error("notify.panic", fmt.Errorf("%v", rec), map[string]any{"method": pkt.Method})
+				r.logger.Error("notify.panic", fmt.Errorf("%v", rec), map[string]any{"method": ctx.Reader().Method()})
 			}
 		}()
-		if err := chain(conn, pkt); err != nil {
-			r.logger.Error("notify.middleware-error", err, map[string]any{"method": pkt.Method})
+		if err := chain(ctx); err != nil {
+			r.logger.Error("notify.middleware-error", err, map[string]any{"method": ctx.Reader().Method()})
 		}
 	}
 }
@@ -112,26 +120,38 @@ func (r *Router) buildChain(core DispatchFunc) DispatchFunc {
 	return chain
 }
 
-func (r *Router) dispatchRequest(conn *rpc.Connection, pkt packet.Packet) error {
-	entry, ok := r.methodTable[pkt.Method]
+func (r *Router) dispatchRequest(ctx rpc.HandlerContext) error {
+	entry, ok := r.methodTable[ctx.Reader().Method()]
 	if !ok {
-		r.sendMethodNotFoundResponse(conn, pkt, pkt.Method)
+		rc := ctx.(*rpc.RequestContext)
+		r.sendMethodNotFoundResponse(rc, ctx.Reader().Method())
 		return nil
 	}
-	return entry(conn, pkt)
+	return entry(ctx)
 }
 
-func (r *Router) dispatchNotify(conn *rpc.Connection, pkt packet.Packet) error {
-	entry, ok := r.notifyTable[pkt.Method]
+func (r *Router) dispatchNotify(ctx rpc.HandlerContext) error {
+	entry, ok := r.notifyTable[ctx.Reader().Method()]
 	if !ok {
-		r.logger.Warn("notify.method-not-found", map[string]any{"method": pkt.Method})
+		r.logger.Warn("notify.method-not-found", map[string]any{"method": ctx.Reader().Method()})
 		return nil
 	}
-	entry(conn, pkt)
-	return nil
+	return entry(ctx)
 }
 
-func (r *Router) sendSuccessResponse(conn *rpc.Connection, pkt packet.Packet, resp any) {
+func mergeHeaders(base map[string]string, override map[string]string) map[string]string {
+	merged := make(map[string]string, len(base)+len(override))
+	for k, v := range base {
+		merged[k] = v
+	}
+	for k, v := range override {
+		merged[k] = v
+	}
+	return merged
+}
+
+func (r *Router) sendSuccessResponse(ctx *rpc.RequestContext, resp any) {
+	pkt := ctx.Reader().Packet()
 	codec := pkt.Codec()
 	payload := packet.Response[any]{
 		Error:  nil,
@@ -142,13 +162,15 @@ func (r *Router) sendSuccessResponse(conn *rpc.Connection, pkt packet.Packet, re
 		r.logger.Error("response.marshal-failed", err, nil)
 		return
 	}
-	respPkt := packet.NewDecodedPacket(packet.PacketOpcodeResponse, "", "", pkt.Headers, data, codec)
-	if err := conn.SendResponse(context.Background(), respPkt); err != nil {
+	headers := mergeHeaders(pkt.Headers, ctx.Res().Headers())
+	respPkt := packet.NewDecodedPacket(packet.PacketOpcodeResponse, "", "", headers, data, codec)
+	if err := ctx.Conn().SendResponse(context.Background(), respPkt); err != nil {
 		r.logger.Error("response.send-failed", err, nil)
 	}
 }
 
-func (r *Router) sendErrorResponse(conn *rpc.Connection, pkt packet.Packet, err error) {
+func (r *Router) sendErrorResponse(ctx *rpc.RequestContext, err error) {
+	pkt := ctx.Reader().Packet()
 	var pe *packet.PayloadError
 	switch e := err.(type) {
 	case *errorx.Error:
@@ -177,13 +199,15 @@ func (r *Router) sendErrorResponse(conn *rpc.Connection, pkt packet.Packet, err 
 		r.logger.Error("response.marshal-failed", marshalErr, nil)
 		return
 	}
-	respPkt := packet.NewDecodedPacket(packet.PacketOpcodeResponse, "", "", pkt.Headers, data, codec)
-	if sendErr := conn.SendResponse(context.Background(), respPkt); sendErr != nil {
+	headers := mergeHeaders(pkt.Headers, ctx.Res().Headers())
+	respPkt := packet.NewDecodedPacket(packet.PacketOpcodeResponse, "", "", headers, data, codec)
+	if sendErr := ctx.Conn().SendResponse(context.Background(), respPkt); sendErr != nil {
 		r.logger.Error("response.send-failed", sendErr, nil)
 	}
 }
 
-func (r *Router) sendMethodNotFoundResponse(conn *rpc.Connection, pkt packet.Packet, method string) {
+func (r *Router) sendMethodNotFoundResponse(ctx *rpc.RequestContext, method string) {
+	pkt := ctx.Reader().Packet()
 	pe := &packet.PayloadError{
 		Code:    "ERR_METHOD_NOT_FOUND",
 		Message: fmt.Sprintf("method '%s' not found", method),
@@ -200,13 +224,16 @@ func (r *Router) sendMethodNotFoundResponse(conn *rpc.Connection, pkt packet.Pac
 		r.logger.Error("response.marshal-failed", err, nil)
 		return
 	}
-	respPkt := packet.NewDecodedPacket(packet.PacketOpcodeResponse, "", "", pkt.Headers, data, codec)
-	if err := conn.SendResponse(context.Background(), respPkt); err != nil {
+	headers := mergeHeaders(pkt.Headers, ctx.Res().Headers())
+	respPkt := packet.NewDecodedPacket(packet.PacketOpcodeResponse, "", "", headers, data, codec)
+	if err := ctx.Conn().SendResponse(context.Background(), respPkt); err != nil {
 		r.logger.Error("response.send-failed", err, nil)
 	}
 }
 
-func (r *Router) sendDecodeErrorResponse(conn *rpc.Connection, pkt packet.Packet, method string, decodeErr error) {
+func (r *Router) sendDecodeErrorResponse(ctx *rpc.RequestContext, decodeErr error) {
+	pkt := ctx.Reader().Packet()
+	method := pkt.Method
 	pe := &packet.PayloadError{
 		Code:    "ERR_DECODE_FAILED",
 		Message: fmt.Sprintf("failed to decode request for method '%s': %s", method, decodeErr.Error()),
@@ -223,8 +250,9 @@ func (r *Router) sendDecodeErrorResponse(conn *rpc.Connection, pkt packet.Packet
 		r.logger.Error("response.marshal-failed", err, nil)
 		return
 	}
-	respPkt := packet.NewDecodedPacket(packet.PacketOpcodeResponse, "", "", pkt.Headers, data, codec)
-	if err := conn.SendResponse(context.Background(), respPkt); err != nil {
+	headers := mergeHeaders(pkt.Headers, ctx.Res().Headers())
+	respPkt := packet.NewDecodedPacket(packet.PacketOpcodeResponse, "", "", headers, data, codec)
+	if err := ctx.Conn().SendResponse(context.Background(), respPkt); err != nil {
 		r.logger.Error("response.send-failed", err, nil)
 	}
 }

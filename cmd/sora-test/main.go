@@ -46,7 +46,7 @@ func main() {
 
 	r := router.NewRouter()
 
-	router.Method(r, "echo", func(conn *rpc.Connection, req EchoRequest) (EchoResponse, error) {
+	router.Method(r, "echo", func(ctx *rpc.RequestContext, req EchoRequest) (EchoResponse, error) {
 		fmt.Printf("[Listener] received: %s\n", req.Message)
 		return EchoResponse{
 			Message: "echo: " + req.Message,
@@ -54,7 +54,7 @@ func main() {
 		}, nil
 	})
 
-	router.Notify(r, "ping", func(conn *rpc.Connection, msg EchoRequest) error {
+	router.Notify(r, "ping", func(ctx *rpc.NotifyContext, msg EchoRequest) error {
 		fmt.Printf("[Listener] notify received: %s\n", msg.Message)
 		return nil
 	})
