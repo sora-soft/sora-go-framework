@@ -86,7 +86,6 @@ func (r *etcdRegistry) RegisterEndpoint(ctx context.Context, endpoint discovery.
 	defer r.mu.Unlock()
 
 	key := entityKey(r.backend.options.Scope, entityEndpoint, endpoint.ID)
-	println("register endpoint", key)
 	leaseID := r.etcdComp.LeaseID()
 	if err := r.backend.putWithLease(ctx, key, endpoint, leaseID); err != nil {
 		return err
