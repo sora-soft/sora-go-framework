@@ -1,6 +1,6 @@
 package types
 
-import "github.com/sora-soft/sora-go-framework.git/pkg/utility"
+import "github.com/sora-soft/sora-go-framework/pkg/utility"
 
 type WorkerOptions struct {
 	Alias *string `json:"alias,omitempty" yaml:"alias,omitempty"`

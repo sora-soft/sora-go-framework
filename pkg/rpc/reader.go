@@ -1,6 +1,6 @@
 package rpc
 
-import "github.com/sora-soft/sora-go-framework.git/pkg/rpc/packet"
+import "github.com/sora-soft/sora-go-framework/pkg/rpc/packet"
 
 type RequestReader struct {
 	pkt packet.Packet

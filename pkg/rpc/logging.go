@@ -1,6 +1,6 @@
 package rpc
 
-import "github.com/sora-soft/sora-go-framework.git/pkg/logger"
+import "github.com/sora-soft/sora-go-framework/pkg/logger"
 
 var FrameLogger *logger.Logger
 var RpcLogger *logger.Logger

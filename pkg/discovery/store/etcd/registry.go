@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	etcdcomp "github.com/sora-soft/sora-go-framework.git/pkg/component/etcd"
-	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
+	etcdcomp "github.com/sora-soft/sora-go-framework/pkg/component/etcd"
+	"github.com/sora-soft/sora-go-framework/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework/pkg/runtime"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 

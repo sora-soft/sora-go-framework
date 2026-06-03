@@ -1,6 +1,6 @@
 package provider
 
-import "github.com/sora-soft/sora-go-framework.git/pkg/utility/errorx"
+import "github.com/sora-soft/sora-go-framework/pkg/utility/errorx"
 
 var (
 	ErrNoAvailableEndpoint = errorx.New("ERR_NO_AVAILABLE_ENDPOINT", errorx.LevelExpected, "RpcError", "no available endpoint", nil)

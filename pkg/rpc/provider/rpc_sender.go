@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/packet"
+	"github.com/sora-soft/sora-go-framework/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc/packet"
 )
 
 type RpcSender struct {

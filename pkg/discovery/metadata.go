@@ -1,7 +1,7 @@
 package discovery
 
 import (
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc"
 )
 
 type NodeVersions struct {

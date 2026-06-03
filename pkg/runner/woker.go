@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sora-soft/sora-go-framework.git/pkg/component"
-	"github.com/sora-soft/sora-go-framework.git/pkg/logger"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/provider"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runner/types"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
+	"github.com/sora-soft/sora-go-framework/pkg/component"
+	"github.com/sora-soft/sora-go-framework/pkg/logger"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc/provider"
+	"github.com/sora-soft/sora-go-framework/pkg/runner/types"
+	"github.com/sora-soft/sora-go-framework/pkg/runtime"
+	"github.com/sora-soft/sora-go-framework/pkg/utility"
 )
 
 type BaseWorker[R types.Runner] struct {

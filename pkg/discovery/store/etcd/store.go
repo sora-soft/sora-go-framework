@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
+	"github.com/sora-soft/sora-go-framework/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework/pkg/runtime"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 )
 

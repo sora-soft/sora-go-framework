@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility/errorx"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework/pkg/utility/errorx"
 )
 
 type TCPListenerOptions struct {

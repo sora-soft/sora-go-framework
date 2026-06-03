@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/component"
-	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
-	"github.com/sora-soft/sora-go-framework.git/pkg/logger"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runner/types"
+	"github.com/sora-soft/sora-go-framework/pkg/component"
+	"github.com/sora-soft/sora-go-framework/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework/pkg/logger"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework/pkg/runner/types"
 )
 
 type Runtime struct {

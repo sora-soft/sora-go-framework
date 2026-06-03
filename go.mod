@@ -1,4 +1,4 @@
-module github.com/sora-soft/sora-go-framework.git
+module github.com/sora-soft/sora-go-framework
 
 go 1.26.2
 

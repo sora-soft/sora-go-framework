@@ -3,7 +3,7 @@ package provider
 import (
 	"testing"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework/pkg/discovery"
 )
 
 func TestEndpointChanged(t *testing.T) {

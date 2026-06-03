@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/logger"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/packet"
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility/errorx"
+	"github.com/sora-soft/sora-go-framework/pkg/logger"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc/packet"
+	"github.com/sora-soft/sora-go-framework/pkg/utility"
+	"github.com/sora-soft/sora-go-framework/pkg/utility/errorx"
 )
 
 type ConnectorState int

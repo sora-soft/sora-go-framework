@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework/pkg/discovery"
 )
 
 type watcher[T any] struct {

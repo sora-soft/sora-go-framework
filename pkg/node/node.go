@@ -4,11 +4,11 @@ import (
 	"context"
 	"os"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/component"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runner"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runner/types"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
+	"github.com/sora-soft/sora-go-framework/pkg/component"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework/pkg/runner"
+	"github.com/sora-soft/sora-go-framework/pkg/runner/types"
+	"github.com/sora-soft/sora-go-framework/pkg/runtime"
 )
 
 type NodeVersions struct {

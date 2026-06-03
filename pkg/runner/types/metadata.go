@@ -3,7 +3,7 @@ package types
 import (
 	"fmt"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
+	"github.com/sora-soft/sora-go-framework/pkg/utility"
 )
 
 type WorkerState int

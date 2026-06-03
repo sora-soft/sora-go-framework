@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/logger"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/packet"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility/errorx"
+	"github.com/sora-soft/sora-go-framework/pkg/logger"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc/packet"
+	"github.com/sora-soft/sora-go-framework/pkg/runtime"
+	"github.com/sora-soft/sora-go-framework/pkg/utility/errorx"
 )
 
 type DispatchFunc func(ctx rpc.HandlerContext) error

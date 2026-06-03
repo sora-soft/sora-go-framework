@@ -1,7 +1,7 @@
 package rpc
 
 import (
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/packet"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc/packet"
 )
 
 type Codec interface {

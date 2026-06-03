@@ -3,9 +3,9 @@ package types
 import (
 	"context"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/component"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/provider"
+	"github.com/sora-soft/sora-go-framework/pkg/component"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc/provider"
 )
 
 type Runner interface {

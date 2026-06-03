@@ -3,7 +3,7 @@ package utility
 import (
 	"sync"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility/errorx"
+	"github.com/sora-soft/sora-go-framework/pkg/utility/errorx"
 )
 
 type State interface {

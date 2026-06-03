@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	ramDisc "github.com/sora-soft/sora-go-framework.git/pkg/discovery/store/ram"
-	jsoncodec "github.com/sora-soft/sora-go-framework.git/pkg/rpc/codec/json"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/provider"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/router"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/transport/tcp"
+	ramDisc "github.com/sora-soft/sora-go-framework/pkg/discovery/store/ram"
+	jsoncodec "github.com/sora-soft/sora-go-framework/pkg/rpc/codec/json"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc/provider"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc/router"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc/transport/tcp"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
+	"github.com/sora-soft/sora-go-framework/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework/pkg/utility"
 )
 
 type EchoRequest struct {

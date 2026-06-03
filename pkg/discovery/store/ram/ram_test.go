@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework/pkg/discovery"
 )
 
 func newTestBackend() *RamBackend {

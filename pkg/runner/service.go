@@ -4,11 +4,11 @@ import (
 	"context"
 	"sync"
 
-	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
-	"github.com/sora-soft/sora-go-framework.git/pkg/rpc"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runner/types"
-	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
-	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
+	"github.com/sora-soft/sora-go-framework/pkg/discovery"
+	"github.com/sora-soft/sora-go-framework/pkg/rpc"
+	"github.com/sora-soft/sora-go-framework/pkg/runner/types"
+	"github.com/sora-soft/sora-go-framework/pkg/runtime"
+	"github.com/sora-soft/sora-go-framework/pkg/utility"
 )
 
 type BaseService[R types.Runner] struct {
