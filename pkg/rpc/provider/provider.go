@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
+	"slices"
 	"sync"
 
 	"github.com/sora-soft/sora-go-framework.git/pkg/discovery"
@@ -74,6 +76,13 @@ func (p *rpcProvider) watchLoop() {
 
 		for _, ep := range filtered {
 			if !currentIds[ep.ID] {
+				if !isEndpointRemoving(ep.State) {
+					p.addSenderLocked(p.ctx, ep)
+				}
+			} else if isEndpointRemoving(ep.State) {
+				p.removeSenderLocked(ep.ID)
+			} else if endpointChanged(p.senders[ep.ID].endpoint, ep) {
+				p.removeSenderLocked(ep.ID)
 				p.addSenderLocked(p.ctx, ep)
 			}
 		}
@@ -110,6 +119,14 @@ func (p *rpcProvider) addSenderLocked(ctx context.Context, endpoint discovery.En
 
 	p.senders[endpoint.ID] = sender
 	p.sendersBySvc[endpoint.TargetID] = append(p.sendersBySvc[endpoint.TargetID], sender)
+
+	rpc.FrameLogger.Success(fmt.Sprintf("provider.%s", p.serviceName), map[string]any{
+		"event":    "sender-created",
+		"id":       endpoint.ID,
+		"listener": map[string]string{"protocol": endpoint.Protocol, "endpoint": endpoint.Endpoint},
+		"targetId": endpoint.TargetID,
+		"name":     p.serviceName,
+	})
 }
 
 func (p *rpcProvider) removeSenderLocked(endpointId string) {
@@ -117,6 +134,14 @@ func (p *rpcProvider) removeSenderLocked(endpointId string) {
 	if !ok {
 		return
 	}
+
+	rpc.FrameLogger.Info(fmt.Sprintf("provider.%s", p.serviceName), map[string]any{
+		"event":      "remove-sender",
+		"name":       p.serviceName,
+		"id":         endpointId,
+		"listenerId": endpointId,
+		"targetId":   sender.endpoint.TargetID,
+	})
 
 	delete(p.senders, endpointId)
 
@@ -133,6 +158,23 @@ func (p *rpcProvider) removeSenderLocked(endpointId string) {
 	}
 
 	sender.Destroy()
+}
+
+func isEndpointRemoving(state int) bool {
+	return state == int(rpc.ListenerStateStopping) || state == int(rpc.ListenerStateStopped)
+}
+
+func endpointChanged(a, b discovery.EndpointMeta) bool {
+	if a.Endpoint != b.Endpoint {
+		return true
+	}
+	if a.Protocol != b.Protocol {
+		return true
+	}
+	if !slices.Equal(a.Codecs, b.Codecs) {
+		return true
+	}
+	return false
 }
 
 func (p *rpcProvider) selectSender() (*RpcSender, error) {

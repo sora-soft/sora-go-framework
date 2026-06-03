@@ -29,12 +29,12 @@ func (l ErrorLevel) String() string {
 }
 
 type Error struct {
-	Code    string
-	Level   ErrorLevel
-	Name    string
-	Message string
-	Extra   any
-	Err     error
+	Code    string     `json:"code"`
+	Level   ErrorLevel `json:"level"`
+	Name    string     `json:"name"`
+	Message string     `json:"message"`
+	Args    any        `json:"args,omitempty"`
+	Err     error      `json:"err,omitempty"`
 }
 
 func (e *Error) Error() string {
@@ -48,23 +48,23 @@ func (e *Error) Unwrap() error {
 	return e.Err
 }
 
-func New(code string, level ErrorLevel, name string, msg string, extra any) *Error {
+func New(code string, level ErrorLevel, name string, msg string, args any) *Error {
 	return &Error{
 		Code:    code,
 		Level:   level,
 		Name:    name,
 		Message: msg,
-		Extra:   extra,
+		Args:    args,
 	}
 }
 
-func Wrap(err error, code string, level ErrorLevel, name string, msg string, extra any) *Error {
+func Wrap(err error, code string, level ErrorLevel, name string, msg string, args any) *Error {
 	return &Error{
 		Code:    code,
 		Level:   level,
 		Name:    name,
 		Message: msg,
-		Extra:   extra,
+		Args:    args,
 		Err:     err,
 	}
 }

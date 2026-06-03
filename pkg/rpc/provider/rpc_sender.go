@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
@@ -39,6 +40,11 @@ func (s *RpcSender) Start(ctx context.Context) {
 }
 
 func (s *RpcSender) connectLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			rpc.FrameLogger.Error("provider", fmt.Errorf("%v", r), map[string]any{"event": "goroutine-panic", "recover": r})
+		}
+	}()
 	delay := 500 * time.Millisecond
 	for {
 		transport := s.transportConf.Factory()
@@ -53,6 +59,7 @@ func (s *RpcSender) connectLoop() {
 
 		if err == nil {
 			delay = 500 * time.Millisecond
+			rpc.FrameLogger.Info("provider", map[string]any{"event": "sender-connected", "endpoint": s.endpoint.Endpoint, "targetId": s.endpoint.TargetID})
 			s.connMu.Lock()
 			s.conn = conn
 			s.connMu.Unlock()
@@ -60,6 +67,7 @@ func (s *RpcSender) connectLoop() {
 			stateCh := conn.LifeCycle.Listen()
 			for state := range stateCh {
 				if state == rpc.ConnectorStateError || state == rpc.ConnectorStateStopped {
+					rpc.FrameLogger.Info("provider", map[string]any{"event": "sender-disconnected", "endpoint": s.endpoint.Endpoint, "targetId": s.endpoint.TargetID})
 					s.connMu.Lock()
 					s.conn = nil
 					s.connMu.Unlock()
@@ -67,6 +75,8 @@ func (s *RpcSender) connectLoop() {
 					break
 				}
 			}
+		} else {
+			rpc.FrameLogger.Error("provider", err, map[string]any{"event": "sender-connect-failed", "endpoint": s.endpoint.Endpoint, "error": err.Error()})
 		}
 
 		s.failAllPending()
@@ -188,7 +198,9 @@ func (s *RpcSender) Destroy() {
 	s.connMu.Unlock()
 
 	if conn != nil {
-		conn.Disconnect()
+		if err := conn.Disconnect(); err != nil {
+			rpc.FrameLogger.Error("provider", err, map[string]any{"event": "connector-off", "error": err.Error(), "endpoint": s.endpoint.Endpoint})
+		}
 	}
 }
 

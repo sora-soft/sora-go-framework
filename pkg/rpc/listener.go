@@ -136,6 +136,11 @@ func (l *Listener) Start(ctx context.Context) error {
 }
 
 func (l *Listener) acceptLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			FrameLogger.Error("listener", fmt.Errorf("%v", r), map[string]any{"event": "goroutine-panic", "recover": r})
+		}
+	}()
 	for {
 		conn, err := l.tl.Accept(l.ctx)
 		if err != nil {
@@ -172,11 +177,18 @@ func (l *Listener) newConnector(sessionId string, conn *Connection) {
 
 	stateCh := conn.LifeCycle.Listen()
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				FrameLogger.Error("listener", fmt.Errorf("%v", r), map[string]any{"event": "goroutine-panic", "recover": r, "session": sessionId})
+			}
+		}()
 		for state := range stateCh {
 			if state == ConnectorStateError || state == ConnectorStateStopped {
 				l.sessionMu.Lock()
 				delete(l.sessions, sessionId)
 				l.sessionMu.Unlock()
+
+				RpcLogger.Info("listener", map[string]any{"event": "session-closed", "session": sessionId})
 
 				if l.callbacks.OnSessionClose != nil {
 					l.callbacks.OnSessionClose(conn, sessionId)
@@ -214,6 +226,7 @@ func (l *Listener) Stop() error {
 		return err
 	}
 
+	FrameLogger.Info("listener", map[string]any{"event": "listener-stopped", "id": l.id})
 	return nil
 }
 

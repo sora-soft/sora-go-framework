@@ -179,7 +179,7 @@ func (r *Router) sendErrorResponse(ctx *rpc.RequestContext, err error) {
 			Message: e.Message,
 			Level:   int(e.Level),
 			Name:    e.Name,
-			Args:    e.Extra,
+			Args:    e.Args,
 		}
 	default:
 		pe = &packet.PayloadError{

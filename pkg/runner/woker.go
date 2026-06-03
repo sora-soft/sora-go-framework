@@ -8,8 +8,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sora-soft/sora-go-framework.git/pkg/component"
+	"github.com/sora-soft/sora-go-framework.git/pkg/logger"
 	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/provider"
 	"github.com/sora-soft/sora-go-framework.git/pkg/runner/types"
+	"github.com/sora-soft/sora-go-framework.git/pkg/runtime"
 	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
 )
 
@@ -33,34 +35,44 @@ type BaseWorker[R types.Runner] struct {
 }
 
 func (b *BaseWorker[R]) ConnectComponent(ctx context.Context, c component.Component) error {
+	meta := c.GetMetaInfo()
+	runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "connect-component", "id": b.Id, "name": b.Name, "component": meta.Name, "version": meta.Version})
 	if err := c.Start(ctx); err != nil {
 		return err
 	}
 	b.compMu.Lock()
 	b.components = append(b.components, c)
 	b.compMu.Unlock()
+	runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "component-connected", "id": b.Id, "name": b.Name, "component": meta.Name, "version": meta.Version})
 	return nil
 }
 
 func (b *BaseWorker[R]) RegisterProvider(ctx context.Context, p provider.Provider) error {
+	runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "register-provider", "id": b.Id, "name": b.Name})
 	if err := p.Start(ctx); err != nil {
 		return err
 	}
 	b.provMu.Lock()
 	b.providers = append(b.providers, p)
 	b.provMu.Unlock()
+	runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "provider-started", "id": b.Id, "name": b.Name})
 	return nil
 }
 
 func (b *BaseWorker[R]) disconnectComponents() {
 	for _, c := range b.components {
+		meta := c.GetMetaInfo()
+		runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "disconnect-component", "id": b.Id, "name": b.Name, "component": meta.Name})
 		c.Stop()
+		runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "component-disconnected", "id": b.Id, "name": b.Name, "component": meta.Name})
 	}
 }
 
 func (b *BaseWorker[R]) stopProviders() {
 	for _, p := range b.providers {
+		runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "unregister-provider", "id": b.Id, "name": b.Name})
 		p.Stop()
+		runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "provider-unregistered", "id": b.Id, "name": b.Name})
 	}
 }
 
@@ -84,6 +96,7 @@ func NewWorker[R types.Runner](name types.WorkerName, runner R, options types.Wo
 func (b *BaseWorker[R]) Start(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
+			runtime.RT.FrameLogger.Error("runtime", err, map[string]any{"event": "worker-on-error", "error": logger.ErrorMessage(err), "name": b.Name, "id": b.Id})
 			b.disconnectComponents()
 			b.LifeCycle.SetStateWithError(types.WorkerStateError, err)
 		}

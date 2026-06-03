@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/sora-soft/sora-go-framework.git/pkg/logger"
 	"github.com/sora-soft/sora-go-framework.git/pkg/rpc/packet"
 	"github.com/sora-soft/sora-go-framework.git/pkg/utility"
 	"github.com/sora-soft/sora-go-framework.git/pkg/utility/errorx"
@@ -177,20 +178,29 @@ func (c *Connection) Serve(listener *Listener) error {
 }
 
 func (c *Connection) readLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			FrameLogger.Error("connector", fmt.Errorf("%v", r), map[string]any{"event": "goroutine-panic", "recover": r})
+			c.LifeCycle.SetStateWithError(ConnectorStateError, fmt.Errorf("readLoop panic: %v", r))
+		}
+	}()
 	for {
 		data, err := c.transport.Recv(c.ctx)
 		if err != nil {
+			FrameLogger.Error("connector", err, map[string]any{"event": "connector-error", "error": logger.ErrorMessage(err)})
 			c.LifeCycle.SetStateWithError(ConnectorStateError, err)
 			return
 		}
 
 		pkt, err := c.codec.DecodePacket(data)
 		if err != nil {
+			FrameLogger.Warn("connector", map[string]any{"event": "parse-body-failed", "error": err.Error()})
 			c.LifeCycle.SetStateWithError(ConnectorStateError, err)
 			return
 		}
 
 		if err := c.handlePacket(pkt); err != nil {
+			FrameLogger.Error("connector", err, map[string]any{"event": "connector-error", "error": logger.ErrorMessage(err)})
 			c.LifeCycle.SetStateWithError(ConnectorStateError, err)
 			return
 		}
@@ -213,6 +223,8 @@ func (c *Connection) handlePacket(pkt packet.Packet) error {
 		if c.OnResponse != nil {
 			go c.OnResponse(c, pkt)
 		}
+	default:
+			FrameLogger.Error("connector", fmt.Errorf("unsupported opcode: %d", pkt.Opcode), map[string]any{"event": "opcode-not-support", "opcode": pkt.Opcode})
 	}
 	return nil
 }
@@ -225,6 +237,7 @@ func (c *Connection) handleCommand(pkt packet.Packet) error {
 			Id int `json:"id" yaml:"id"`
 		}
 		if err := json.Unmarshal(pkt.Payload(), &args); err != nil {
+			FrameLogger.Error("connector", err, map[string]any{"event": "handle-command-error", "error": logger.ErrorMessage(err), "command": string(cmd)})
 			return err
 		}
 		return c.sendPong(args.Id)
@@ -233,6 +246,7 @@ func (c *Connection) handleCommand(pkt packet.Packet) error {
 			Id int `json:"id" yaml:"id"`
 		}
 		if err := json.Unmarshal(pkt.Payload(), &args); err != nil {
+			FrameLogger.Error("connector", err, map[string]any{"event": "handle-command-error", "error": logger.ErrorMessage(err), "command": string(cmd)})
 			return err
 		}
 		c.mu.Lock()
@@ -240,6 +254,8 @@ func (c *Connection) handleCommand(pkt packet.Packet) error {
 			c.pinger.OnPong(args.Id, nil)
 		}
 		c.mu.Unlock()
+	default:
+		FrameLogger.Warn("connector", map[string]any{"event": "connector-command", "command": string(cmd)})
 	}
 	return nil
 }

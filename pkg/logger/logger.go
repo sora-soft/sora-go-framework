@@ -64,7 +64,7 @@ type errorMessageData struct {
 	Name    string `json:"name" yaml:"name"`
 	Message string `json:"message" yaml:"message"`
 	Stack   []string `json:"stack" yaml:"stack"`
-	Extra   any     `json:"args,omitempty" yaml:"args,omitempty"`
+	Args    any     `json:"args,omitempty" yaml:"args,omitempty"`
 }
 
 func ErrorMessage(err error) any {
@@ -75,7 +75,7 @@ func ErrorMessage(err error) any {
 			Name:    exErr.Name,
 			Message: exErr.Message,
 			Stack:   extractErrorStack(err),
-			Extra:   exErr.Extra,
+			Args:    exErr.Args,
 		}
 	}
 	return errorMessageData{

@@ -50,6 +50,13 @@ type commandWire struct {
 	Args    json.RawMessage         `json:"args" yaml:"args"`
 }
 
+func ensureHeaders(h map[string]string) map[string]string {
+	if h == nil {
+		return map[string]string{}
+	}
+	return h
+}
+
 func (c *JSONBufferCodec) EncodePacket(pkt packet.Packet) ([]byte, error) {
 	switch pkt.Opcode {
 	case packet.PacketOpcodeRequest:
@@ -57,13 +64,13 @@ func (c *JSONBufferCodec) EncodePacket(pkt packet.Packet) ([]byte, error) {
 			Opcode:  pkt.Opcode,
 			Method:  pkt.Method,
 			Service: pkt.Service,
-			Headers: pkt.Headers,
+			Headers: ensureHeaders(pkt.Headers),
 			Payload: pkt.Payload(),
 		})
 	case packet.PacketOpcodeResponse:
 		return json.Marshal(responseWire{
 			Opcode:  pkt.Opcode,
-			Headers: pkt.Headers,
+			Headers: ensureHeaders(pkt.Headers),
 			Payload: pkt.Payload(),
 		})
 	case packet.PacketOpcodeNotify:
@@ -71,7 +78,7 @@ func (c *JSONBufferCodec) EncodePacket(pkt packet.Packet) ([]byte, error) {
 			Opcode:  pkt.Opcode,
 			Method:  pkt.Method,
 			Service: pkt.Service,
-			Headers: pkt.Headers,
+			Headers: ensureHeaders(pkt.Headers),
 			Payload: pkt.Payload(),
 		})
 	case packet.PacketOpcodeCommand:

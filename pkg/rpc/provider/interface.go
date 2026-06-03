@@ -32,7 +32,7 @@ func CallRpc[Resp any](p Provider, ctx context.Context, method string, req any, 
 			Level:   errorx.ErrorLevel(resp.Error.Level),
 			Name:    "RpcResponseError",
 			Message: resp.Error.Message,
-			Extra:   resp.Error.Args,
+			Args:    resp.Error.Args,
 		}
 	}
 

@@ -40,9 +40,8 @@ func (s *BaseService[R]) Start(ctx context.Context) error {
 }
 
 func (s *BaseService[R]) InstallListener(ctx context.Context, l *rpc.Listener) error {
-	if err := l.Start(ctx); err != nil {
-		return err
-	}
+	meta := l.GetMetaInfo()
+	runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "install-listener", "name": s.Name, "id": s.Id, "meta": meta})
 
 	s.lisnMu.Lock()
 	s.listeners = append(s.listeners, l)
@@ -64,6 +63,7 @@ func (s *BaseService[R]) InstallListener(ctx context.Context, l *rpc.Listener) e
 					reg.RegisterEndpoint(context.Background(), epMeta)
 				}
 			case rpc.ListenerStateStopped, rpc.ListenerStateError:
+				runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "listener-err", "name": s.Name, "id": s.Id, "listenerId": l.Id()})
 				reg := runtime.RT.GetDiscoveryRegistry()
 				if reg != nil {
 					reg.UnregisterEndpoint(context.Background(), l.Id())
@@ -74,12 +74,20 @@ func (s *BaseService[R]) InstallListener(ctx context.Context, l *rpc.Listener) e
 		}
 	}()
 
+	if err := l.Start(ctx); err != nil {
+		return err
+	}
+
+	runtime.RT.FrameLogger.Success("runtime", map[string]any{"event": "listener-started", "name": s.Name, "id": s.Id, "meta": meta})
 	return nil
 }
 
 func (s *BaseService[R]) stopListeners() {
 	for _, l := range s.listeners {
+		meta := l.GetMetaInfo()
+		runtime.RT.FrameLogger.Info("runtime", map[string]any{"event": "uninstall-listener", "name": s.Name, "id": s.Id, "meta": meta})
 		l.Stop()
+		runtime.RT.FrameLogger.Success("runtime", map[string]any{"event": "listener-stopped", "name": s.Name, "id": s.Id, "meta": meta})
 	}
 }
 
