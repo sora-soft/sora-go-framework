@@ -38,18 +38,17 @@ func (lc *LifeCycle[T]) SetState(state T) error {
 	}
 
 	lc.mu.Lock()
-	defer lc.mu.Unlock()
-
 	if lc.state == state {
+		lc.mu.Unlock()
 		return nil
 	}
 	lc.state = state
+	listeners := make([]listener[T], len(lc.listeners))
+	copy(listeners, lc.listeners)
+	lc.mu.Unlock()
 
-	for _, listener := range lc.listeners {
-		select {
-		case listener.ch <- state:
-		default:
-		}
+	for _, l := range listeners {
+		l.ch <- state
 	}
 
 	return nil

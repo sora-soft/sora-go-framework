@@ -35,6 +35,8 @@ type Runtime struct {
 	node    types.Service
 	backend discovery.Backend
 	scope   string
+
+	lifecycleWg sync.WaitGroup
 }
 
 func NewRuntime() *Runtime {
@@ -130,7 +132,9 @@ func (r *Runtime) InstallService(ctx context.Context, svc types.Service) error {
 
 	if listener, ok := svc.(types.LifeCycleListener); ok {
 		ch := listener.ListenLifeCycle()
+		r.lifecycleWg.Add(1)
 		go func() {
+			defer r.lifecycleWg.Done()
 			defer r.recoverPanic()
 			for state := range ch {
 				switch state {
@@ -157,6 +161,7 @@ func (r *Runtime) InstallService(ctx context.Context, svc types.Service) error {
 							r.FrameLogger.Error("runtime", err, map[string]any{"event": "discovery-unregister-service", "error": logger.ErrorMessage(err), "name": meta.Name, "id": meta.Id})
 						}
 					}
+					return
 				}
 			}
 		}()
@@ -181,7 +186,9 @@ func (r *Runtime) InstallWorker(w types.Worker) {
 
 	if listener, ok := w.(types.LifeCycleListener); ok {
 		ch := listener.ListenLifeCycle()
+		r.lifecycleWg.Add(1)
 		go func() {
+			defer r.lifecycleWg.Done()
 			defer r.recoverPanic()
 			for state := range ch {
 				switch state {
@@ -207,6 +214,7 @@ func (r *Runtime) InstallWorker(w types.Worker) {
 							r.FrameLogger.Error("runtime", err, map[string]any{"event": "discovery-unregister-worker", "error": logger.ErrorMessage(err), "name": meta.Name, "id": meta.Id})
 						}
 					}
+					return
 				}
 			}
 		}()
@@ -412,6 +420,8 @@ func (r *Runtime) Shutdown() error {
 	if nodeId != "" {
 		collectErr(r.UninstallService(nodeId))
 	}
+
+	r.lifecycleWg.Wait()
 
 	r.nodeMu.Lock()
 	b := r.backend
