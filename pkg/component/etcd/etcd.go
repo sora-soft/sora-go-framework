@@ -112,8 +112,6 @@ func (e *EtcdComponent) Disconnect() error {
 }
 
 func (e *EtcdComponent) SetOptions(opts any) error {
-	println("set options!!!!")
-
 	o, ok := opts.(*EtcdComponentOptions)
 	if !ok {
 		return newInvalidOptionsError()
